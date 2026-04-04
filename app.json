@@ -7,24 +7,15 @@
       "package": "com.ereza018.appcrashnueva",
       "permissions": [
         "CAMERA",
+        "ACCESS_FINE_LOCATION",
         "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "ACCESS_FINE_LOCATION"
+        "WRITE_EXTERNAL_STORAGE"
       ]
     },
     "plugins": [
-      [
-        "expo-camera",
-        {
-          "cameraPermission": "Permitir que la app use la cámara"
-        }
-      ],
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "Permitir que la app acceda a tus fotos"
-        }
-      ]
+      "expo-camera",
+      "expo-location",
+      "expo-image-picker"
     ],
     "extra": {
       "eas": {
