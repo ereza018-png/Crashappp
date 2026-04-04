@@ -12,9 +12,13 @@
         "WRITE_EXTERNAL_STORAGE"
       ]
     },
+    "splash": {
+      "backgroundColor": "#ffffff"
+    },
     "plugins": [
       "expo-location",
-      "expo-image-picker"
+      "expo-image-picker",
+      "expo-document-picker"
     ],
     "extra": {
       "eas": {
