@@ -15,7 +15,6 @@
     "plugins": [
       "expo-camera",
       "expo-location",
-      "expo-mail-composer",
       "expo-image-picker"
     ],
     "extra": {
