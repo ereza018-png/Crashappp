@@ -4,7 +4,6 @@
   "main": "node_modules/expo/AppEntry.js",
   "dependencies": {
     "expo": "~51.0.0",
-    "expo-camera": "~15.0.10",
     "expo-location": "~17.0.1",
     "expo-mail-composer": "~13.0.0",
     "expo-image-picker": "~15.1.0",
