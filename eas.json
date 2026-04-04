@@ -1,6 +1,6 @@
 {
   "build": {
-    "avance": {
+    "production": {
       "android": {
         "buildType": "apk"
       }
@@ -10,12 +10,7 @@
         "buildType": "apk"
       }
     },
-    "producción": {
-      "android": {
-        "buildType": "apk"
-      }
-    },
-    "production": {
+    "avance": {
       "android": {
         "buildType": "apk"
       }
