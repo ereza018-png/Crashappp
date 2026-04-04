@@ -5,6 +5,11 @@
     "version": "1.0.0",
     "android": {
       "package": "com.ereza018.appcrashnueva"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "eebb7225-1c6f-40f4-8744-69458f8d8cde"
+      }
     }
   }
 }
