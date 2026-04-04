@@ -4,7 +4,7 @@ import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as MailComposer from 'expo-mail-composer';
-import * as Sharing from 'expo-sharing'; // Para visualizar PDFs
+import * as Sharing from 'expo-sharing'; // IMPORTANTE: Para visualizar archivos
 
 const { width } = Dimensions.get('window');
 
@@ -15,7 +15,7 @@ export default function App() {
     acuerdos: 'Seleccionar', responsabilidad: 'Seleccionar', circunstancias: 'Seleccionar', improcedentes: 'Seleccionar'
   });
 
-  const [attachments, setAttachments] = useState([]); // Array de {id, uri, label, type, rotation}
+  const [attachments, setAttachments] = useState([]);
   const [loading, setLoading] = useState(false);
   
   // --- ESTADOS DE INTERFAZ ---
@@ -38,7 +38,7 @@ export default function App() {
     })();
   }, []);
 
-  // --- TODOS LOS LISTADOS PROPORCIONADOS ---
+  // --- LISTADOS COMPLETOS ---
   const LISTAS = {
     aseguradora: ["HDI", "EL ÁGUILA", "GEN DE SEG", "ALLIANZ", "ANA SEGUROS", "CHUBB", "OTRAS"],
     atencion: ["COMPLEMENTARIA", "SIN PÓLIZA", "DIVERSOS", "KM", "PEAJE"],
@@ -53,7 +53,7 @@ export default function App() {
     tercero: ["DOCUMENTOS", "VEHÍCULO TERCERO"]
   };
 
-  // --- LÓGICA DE ARCHIVOS ---
+  // --- FUNCIONES DE ARCHIVOS ---
   const abrirCamara = async (label) => {
     let result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
     if (!result.canceled) {
@@ -74,13 +74,15 @@ export default function App() {
     let result = await DocumentPicker.getDocumentAsync({ type: "application/pdf" });
     if (!result.canceled) {
       setAttachments([...attachments, { id: Date.now(), uri: result.assets[0].uri, label: 'PDF ADJUNTO', type: 'pdf', rotation: 0 }]);
-      Alert.alert("Éxito", "PDF agregado correctamente.");
     }
   };
 
+  // --- FUNCIÓN SOLICITADA: VISUALIZAR ARCHIVO ---
   const verArchivo = async (item) => {
-    if (item.type === 'pdf' || item.type === 'image') {
-      await Sharing.shareAsync(item.uri); // Esto abre el visor del sistema
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(item.uri); 
+    } else {
+      Alert.alert("Error", "La visualización no está disponible en este dispositivo.");
     }
   };
 
@@ -90,6 +92,21 @@ export default function App() {
 
   const eliminarArchivo = (id) => {
     setAttachments(attachments.filter(a => a.id !== id));
+  };
+
+  const enviarEmail = async () => {
+    setLoading(true);
+    try {
+      let loc = await Location.getCurrentPositionAsync({});
+      const mapsUrl = `https://www.google.com/maps?q=${loc.coords.latitude},${loc.coords.longitude}`;
+      await MailComposer.composeAsync({
+        recipients: ['tu-correo@ejemplo.com'], // Cambia esto
+        subject: `REPORTE ${datos.reporte} - ${datos.aseguradora}`,
+        body: `Reporte: ${datos.reporte}\nSiniestro: ${datos.siniestro}\nUbicación: ${mapsUrl}\nArchivos: ${attachments.length}`,
+        attachments: attachments.map(a => a.uri),
+      });
+    } catch (e) { Alert.alert("Error", "No se pudo enviar."); }
+    setLoading(false);
   };
 
   // --- COMPONENTES ---
@@ -122,7 +139,7 @@ export default function App() {
           <FilaDato label="IMPROCEDENTES" valor={datos.improcedentes} onPress={() => { setModalData({ title: 'IMPROCEDENTES', options: LISTAS.improcedentes, field: 'improcedentes' }); setModalVisible(true); }} />
         </View>
 
-        {/* FOTOS ASEGURADO */}
+        {/* ACORDEONES */}
         <TouchableOpacity style={styles.btnVerdeHeader} onPress={() => setAseguradoExpanded(!aseguradoExpanded)}>
           <Text style={styles.btnTextoCard}>FOTOS ASEGURADO</Text><Text style={{color:'white'}}>{aseguradoExpanded ? '▲' : '▼'}</Text>
         </TouchableOpacity>
@@ -143,7 +160,6 @@ export default function App() {
           </View>
         )}
 
-        {/* FOTOS TERCERO */}
         <TouchableOpacity style={[styles.btnAzulHeader, {marginTop:10}]} onPress={() => setTerceroExpanded(!terceroExpanded)}>
           <Text style={styles.btnTextoCard}>FOTOS TERCERO</Text><Text style={{color:'white'}}>{terceroExpanded ? '▲' : '▼'}</Text>
         </TouchableOpacity>
@@ -158,12 +174,9 @@ export default function App() {
           </View>
         )}
 
-        {/* BOTONES ACCION */}
+        {/* BOTONES DE ACCIÓN */}
         <TouchableOpacity style={styles.btnRojo} onPress={adjuntarPDF}>
-          <View style={{flexDirection:'row', alignItems:'center'}}>
-            <View style={styles.iconDoc}><Text>📄</Text></View>
-            <View><Text style={styles.btnTextoCard}>ADJUNTAR ARCHIVOS (PDF)</Text></View>
-          </View>
+          <Text style={styles.btnTextoCard}>📄 ADJUNTAR PDF / DOCUMENTOS</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.btnAmarillo} onPress={() => setReviewVisible(true)}>
@@ -173,7 +186,7 @@ export default function App() {
         <TouchableOpacity style={{marginTop:15}} onPress={() => setAttachments([])}><Text style={{color:'#999', textAlign:'center'}}>LIMPIAR TODO</Text></TouchableOpacity>
       </ScrollView>
 
-      {/* --- MODAL REVISIÓN (PDF + ROTAR + ELIMINAR) --- */}
+      {/* --- MODAL REVISIÓN (CON ROTAR Y VER ARCHIVO) --- */}
       <Modal visible={reviewVisible} animationType="slide">
         <View style={styles.modalRevFondo}>
           <Text style={styles.revTitulo}>REVISAR / ELIMINAR / ROTAR</Text>
@@ -186,24 +199,26 @@ export default function App() {
                 {item.type === 'image' ? (
                   <Image source={{uri: item.uri}} style={[styles.revImg, {transform: [{rotate: `${item.rotation}deg`}]}]} />
                 ) : (
-                  <View style={[styles.revImg, styles.pdfPlaceholder]}><Text style={{fontSize:40}}>📄</Text><Text style={{fontSize:10}}>PDF</Text></View>
+                  <View style={[styles.revImg, {backgroundColor:'#eee', justifyContent:'center', alignItems:'center'}]}>
+                    <Text style={{fontSize:40}}>📄</Text><Text style={{fontSize:10}}>PDF</Text>
+                  </View>
                 )}
                 <Text numberOfLines={1} style={styles.revLabel}>{item.label}</Text>
                 <View style={styles.revBotonesRow}>
                    {item.type === 'image' && <TouchableOpacity style={styles.revBtnAction} onPress={() => rotarEnRevision(item.id)}><Text>🔄</Text></TouchableOpacity>}
                    <TouchableOpacity style={styles.revBtnAction} onPress={() => verArchivo(item)}><Text>👁️</Text></TouchableOpacity>
-                   <TouchableOpacity style={[styles.revBtnAction, {backgroundColor:'#ff4444'}]} onPress={() => eliminarArchivo(item.id)}><Text>🗑️</Text></TouchableOpacity>
+                   <TouchableOpacity style={[styles.revBtnAction, {backgroundColor:'#ff4444'}]} onPress={() => eliminarArchivo(item.id)}><Text style={{color:'white'}}>🗑️</Text></TouchableOpacity>
                 </View>
               </View>
             )}
           />
-          <TouchableOpacity style={styles.btnFinalEnviar} onPress={() => { setReviewVisible(false); Alert.alert("Listo", "Presiona Enviar Correo en la pantalla principal."); }}>
+          <TouchableOpacity style={styles.btnFinalEnviar} onPress={() => setReviewVisible(false)}>
             <Text style={{color:'white', fontWeight:'bold'}}>GUARDAR Y VOLVER</Text>
           </TouchableOpacity>
         </View>
       </Modal>
 
-      {/* MODAL CÁMARA PREVIEW (ROTAR AL TOMAR) */}
+      {/* MODAL CÁMARA PREVIEW */}
       <Modal visible={previewVisible}>
         <View style={styles.previewFondo}>
           <Image source={{uri: currentPhoto}} style={[styles.previewImg, {transform: [{rotate: `${rotation}deg`}]}]} />
@@ -215,11 +230,10 @@ export default function App() {
         </View>
       </Modal>
 
-      {/* SELECTORES (HDI, ACUERDOS, ETC) */}
+      {/* SELECTORES (HDI, etc) */}
       <Modal visible={modalVisible} transparent={true} animationType="fade">
         <View style={styles.mFondo}>
           <View style={styles.mCont}>
-            <Text style={styles.mTit}>{modalData.title}</Text>
             <FlatList data={modalData.options} renderItem={({item}) => (
               <TouchableOpacity style={styles.mItem} onPress={() => {
                 if(modalData.field === 'atencion') {
@@ -255,18 +269,16 @@ const styles = StyleSheet.create({
   textoItemFoto: { fontSize: 12, color: '#444', fontWeight:'500' },
   badge: { backgroundColor: '#4CD964', borderRadius: 10, paddingHorizontal: 6 },
   badgeText: { color: 'white', fontSize: 11, fontWeight: 'bold' },
-  btnRojo: { backgroundColor: '#c62828', padding: 15, borderRadius: 12, marginTop: 15 },
+  btnRojo: { backgroundColor: '#c62828', padding: 15, borderRadius: 12, marginTop: 15, alignItems:'center' },
   btnAmarillo: { backgroundColor: '#ffcc00', padding: 18, borderRadius: 12, marginTop: 15, alignItems: 'center' },
   btnTextoCard: { color: 'white', fontWeight: 'bold' },
   btnTextoEnviar: { color: '#003366', fontWeight: 'bold' },
-  iconDoc: { backgroundColor: 'white', padding: 5, borderRadius: 5, marginRight: 10 },
   
-  // Revisión
+  // Estilos Revisión
   modalRevFondo: { flex: 1, backgroundColor: 'white', paddingTop: 50, padding: 10 },
   revTitulo: { fontSize: 18, fontWeight: 'bold', color: '#003366', textAlign: 'center', marginBottom: 20 },
   revBox: { width: '48%', margin: '1%', backgroundColor: '#f9f9f9', borderRadius: 10, padding: 8, alignItems: 'center', borderWidth:1, borderColor:'#ddd' },
   revImg: { width: '100%', height: 110, borderRadius: 8 },
-  pdfPlaceholder: { backgroundColor: '#eee', justifyContent: 'center' },
   revLabel: { fontSize: 9, marginTop: 5, fontWeight:'bold' },
   revBotonesRow: { flexDirection: 'row', marginTop: 8, justifyContent: 'space-around', width: '100%' },
   revBtnAction: { backgroundColor: '#eee', padding: 6, borderRadius: 5 },
@@ -280,7 +292,6 @@ const styles = StyleSheet.create({
 
   mFondo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
   mCont: { backgroundColor: 'white', borderRadius: 20, padding: 20, maxHeight: '80%' },
-  mTit: { fontSize: 16, fontWeight: 'bold', textAlign:'center', marginBottom: 15 },
   mItem: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
   mTxt: { fontSize: 13 },
   mCerrar: { backgroundColor: '#003366', padding: 12, borderRadius: 10, marginTop: 10, alignItems: 'center' }
