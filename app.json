@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "AppCrashNueva",
-    "slug": "app-crash-nueva",
+    "name": "Crashito",
+    "slug": "crashito",
     "version": "1.0.0",
     "android": {
       "package": "com.ereza018.appcrashnueva",
