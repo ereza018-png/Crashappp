@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "CrashAsesores",
+    "name": "Crashito",
     "slug": "crashito",
     "version": "1.0.0",
     "android": {
@@ -17,7 +17,9 @@
     },
     "plugins": [
       "expo-location",
-      "expo-image-picker"
+      "expo-image-picker",
+      "expo-document-picker",
+      "expo-sharing"
     ],
     "extra": {
       "eas": {
@@ -25,4 +27,3 @@
       }
     }
   }
-}
