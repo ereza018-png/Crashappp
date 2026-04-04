@@ -1,6 +1,16 @@
 {
   "build": {
+    "avance": {
+      "android": {
+        "buildType": "apk"
+      }
+    },
     "preview": {
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "producción": {
       "android": {
         "buildType": "apk"
       }
