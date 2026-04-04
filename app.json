@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Crashito",
+    "name": "CrashAsesores",
     "slug": "crashito",
     "version": "1.0.0",
     "android": {
@@ -13,12 +13,11 @@
       ]
     },
     "splash": {
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#003366"
     },
     "plugins": [
       "expo-location",
-      "expo-image-picker",
-      "expo-document-picker"
+      "expo-image-picker"
     ],
     "extra": {
       "eas": {
