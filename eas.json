@@ -1,19 +1,24 @@
 {
   "build": {
-    "avance": {
-      "android": { "buildType": "apk" }
-    },
     "Avance": {
-      "android": { "buildType": "apk" }
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "avance": {
+      "android": {
+        "buildType": "apk"
+      }
     },
     "preview": {
-      "android": { "buildType": "apk" }
+      "android": {
+        "buildType": "apk"
+      }
     },
     "production": {
-      "android": { "buildType": "apk" }
-    },
-    "producción": {
-      "android": { "buildType": "apk" }
+      "android": {
+        "buildType": "apk"
+      }
     }
   }
 }
