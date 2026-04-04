@@ -13,7 +13,6 @@
       ]
     },
     "plugins": [
-      "expo-camera",
       "expo-location",
       "expo-image-picker"
     ],
