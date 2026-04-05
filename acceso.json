@@ -1,0 +1,15 @@
+{
+  "usuarios_autorizados": [
+    {
+      "id": "AJ01",
+      "nombre": "JUAN PEREZ",
+      "correo": "juan.perez@email.com"
+    },
+    {
+      "id": "AJ02",
+      "nombre": "PEDRO RUIZ",
+      "correo": "pedro.ruiz@email.com"
+    }
+  ],
+  "mensaje_bloqueo": "ACCESO DENEGADO.\n\nEste usuario ha sido dado de baja del sistema Crash Asesores."
+}
