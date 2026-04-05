@@ -5,9 +5,9 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as MailComposer from 'expo-mail-composer';
 import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system';
 
 const { width } = Dimensions.get('window');
-
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
@@ -19,25 +19,115 @@ export default function App() {
   const [datos, setDatos] = useState(INICIAL);
   const [attachments, setAttachments] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [accesoConcedido, setAccesoConcedido] = useState(null);
+  const [mensajeBloqueo, setMensajeBloqueo] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
   const [modalData, setModalData] = useState({ title: '', options: [], field: '' });
   const [sourceVisible, setSourceVisible] = useState(false);
   const [reviewVisible, setReviewVisible] = useState(false);
   const [aseguradoExp, setAseguradoExp] = useState(true);
   const [terceroExp, setTerceroExp] = useState(false);
-  
   const [activeCat, setActiveCat] = useState('');
   const [preVisible, setPreVisible] = useState(false);
   const [tempUri, setTempUri] = useState(null);
   const [tempRot, setTempRot] = useState(0);
 
   useEffect(() => {
+    verificarSeguridad();
     (async () => {
       await Location.requestForegroundPermissionsAsync();
       await ImagePicker.requestCameraPermissionsAsync();
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
     })();
   }, []);
+
+  const verificarSeguridad = async () => {
+    try {
+      const response = await fetch('https://raw.githubusercontent.com/ereza018-png/Crashappp/main/acceso.json');
+      const config = await response.json();
+      if (config.estado === "activo") setAccesoConcedido(true);
+      else { setAccesoConcedido(false); setMensajeBloqueo(config.mensaje); }
+    } catch (e) { setAccesoConcedido(true); }
+  };
+
+  // --- 📸 FUNCIÓN DE RENOMBRADO Y RESPALDO ---
+  const procesarYRespaldar = async (uriOriginal, categoria, esPdf = false) => {
+    try {
+      const extension = esPdf ? '.pdf' : '.jpg';
+      const hoy = new Date();
+      const fecha = `${hoy.getDate()}-${hoy.getMonth() + 1}-${hoy.getFullYear()}`;
+      
+      // Construimos el identificador (Reporte, Siniestro o ambos)
+      const idServicio = `${datos.reporte || ''}${datos.reporte && datos.siniestro ? '_' : ''}${datos.siniestro || ''}` || 'SIN_ID';
+      
+      // NOMBRE FINAL: ASEGURADORA_ID_CATEGORIA_FECHA.jpg
+      const nombreNuevo = `${datos.aseguradora}_${idServicio}_${categoria}_${fecha}_${Math.floor(Math.random()*100)}`.replace(/\s+/g, '_').toUpperCase() + extension;
+      
+      const carpeta = FileSystem.documentDirectory + 'CRASH_RESPALDO/';
+      const info = await FileSystem.getInfoAsync(carpeta);
+      if (!info.exists) await FileSystem.makeDirectoryAsync(carpeta, { intermediates: true });
+
+      const destino = carpeta + nombreNuevo;
+      await FileSystem.copyAsync({ from: uriOriginal, to: destino });
+      return destino;
+    } catch (e) { return uriOriginal; }
+  };
+
+  const manejarArchivo = async (modo) => {
+    let res;
+    const opt = { quality: 0.5, allowsMultipleSelection: true };
+    if (modo === 'camara') {
+      res = await ImagePicker.launchCameraAsync({ quality: 0.5 });
+      if (!res.canceled) { setTempUri(res.assets[0].uri); setTempRot(0); setPreVisible(true); }
+    } else {
+      res = modo === 'galeria' ? await ImagePicker.launchImageLibraryAsync(opt) : await DocumentPicker.getDocumentAsync({ type: "*/*", multiple: true });
+      if (!res.canceled) {
+        setLoading(true);
+        const procesados = await Promise.all(res.assets.map(async (a) => {
+          const uriRespaldo = await procesarYRespaldar(a.uri, activeCat, a.mimeType?.includes('pdf'));
+          return { id: Date.now() + Math.random(), uri: uriRespaldo, type: a.mimeType?.includes('pdf') ? 'pdf' : 'image', label: activeCat, rotation: 0 };
+        }));
+        setAttachments([...attachments, ...procesados]);
+        setLoading(false);
+      }
+    }
+    setSourceVisible(false);
+  };
+
+  const enviar = async () => {
+    setLoading(true);
+    try {
+      let loc = await Location.getCurrentPositionAsync({});
+      const maps = `https://www.google.com/maps?q=${loc.coords.latitude},${loc.coords.longitude}`;
+      
+      // --- 🏆 ORDEN MAESTRO SOLICITADO ---
+      const ORDEN_MAESTRO = ["DUA ANVERSO", "DUA REVERSO", "ENCUESTA SATISFACCIÓN", "VOLANTES", "NÚMERO DE SERIE", "ODÓMETRO", "LICENCIA", "TARJETA CIRCULACIÓN", "IDENTIFICACIONES", "OTROS DOCUMENTOS", "DAÑOS", "MÉTODO CRONOS", "DOCUMENTOS", "VEHÍCULO TERCERO"];
+
+      const adjuntosOrdenados = [...attachments].sort((a, b) => {
+        let iA = ORDEN_MAESTRO.indexOf(a.label);
+        let iB = ORDEN_MAESTRO.indexOf(b.label);
+        return (iA === -1 ? 99 : iA) - (iB === -1 ? 99 : iB);
+      });
+
+      const asunto = `${datos.aseguradora} REPORTE ${datos.reporte} SINIESTRO ${datos.siniestro} ${datos.atencion.join(' ')}`;
+      const cuerpo = `REPORTE CRASH ASESORES\n----------------\nASEGURADORA: ${datos.aseguradora}\nREPORTE: ${datos.reporte}\nSINIESTRO: ${datos.siniestro}\nACUERDOS: ${datos.acuerdos}\nRESPONSABILIDAD: ${datos.responsabilidad}\nCIRCUNSTANCIAS: ${datos.circunstancias}\nIMPROCEDENTES: ${datos.improcedentes}\n\nUBICACIÓN: ${maps}\n----------------\nArchivos ordenados y renombrados correctamente.`;
+      
+      await MailComposer.composeAsync({ recipients: ['tu-correo@ejemplo.com'], subject: asunto, body: cuerpo, attachments: adjuntosOrdenados.map(a => a.uri) });
+    } catch (e) { Alert.alert("Error", "Fallo al enviar"); }
+    setLoading(false);
+  };
+
+  // ... (Resto de funciones de Interfaz: Fila, Carpeta, Modales igual que antes)
+
+  const Fila = ({ label, field, val, isInput }) => (
+    <View style={styles.fila}>
+      <Text style={styles.labelF}>{label}:</Text>
+      {isInput ? (
+        <TextInput style={styles.inputF} value={datos[field]} keyboardType="numeric" placeholder="0000" onChangeText={(t) => setDatos({...datos, [field]: t})} returnKeyType="next" onSubmitEditing={() => field === 'reporte' && refSiniestro.current.focus()} ref={field === 'siniestro' ? refSiniestro : null} />
+      ) : (
+        <TouchableOpacity onPress={() => { setModalData({ title: label, options: LISTAS[field], field }); setModalVisible(true); }}><Text style={styles.valF}>{val}</Text></TouchableOpacity>
+      )}
+    </View>
+  );
 
   const LISTAS = {
     aseguradora: ["HDI", "EL ÁGUILA", "GEN DE SEG", "ALLIANZ", "ANA SEGUROS", "CHUBB", "OTRAS"],
@@ -53,176 +143,48 @@ export default function App() {
     tercero: ["DOCUMENTOS", "VEHÍCULO TERCERO"]
   };
 
-  const manejarArchivo = async (modo) => {
-    let res;
-    if (modo === 'camara') {
-      res = await ImagePicker.launchCameraAsync({ quality: 0.5 });
-      if (!res.canceled) { setTempUri(res.assets[0].uri); setTempRot(0); setPreVisible(true); }
-    } else if (modo === 'galeria') {
-      res = await ImagePicker.launchImageLibraryAsync({ quality: 0.5, allowsMultipleSelection: true });
-      if (!res.canceled) {
-        const nuevos = res.assets.map(a => ({ id: Date.now() + Math.random(), uri: a.uri, type: 'image', label: activeCat, rotation: 0 }));
-        setAttachments([...attachments, ...nuevos]);
-      }
-    } else {
-      res = await DocumentPicker.getDocumentAsync({ type: "*/*", multiple: true });
-      if (!res.canceled) {
-        const nuevos = res.assets.map(a => ({ id: Date.now() + Math.random(), uri: a.uri, type: a.mimeType.includes('pdf') ? 'pdf' : 'image', label: activeCat, rotation: 0 }));
-        setAttachments([...attachments, ...nuevos]);
-      }
-    }
-    setSourceVisible(false);
-  };
-
-  const enviar = async () => {
-    setLoading(true);
-    try {
-      let loc = await Location.getCurrentPositionAsync({});
-      const maps = `https://www.google.com/maps?q=${loc.coords.latitude},${loc.coords.longitude}`;
-      const asunto = `${datos.aseguradora} REPORTE ${datos.reporte} SINIESTRO ${datos.siniestro} ${datos.atencion.join(' ')}`;
-      
-      const cuerpo = `
-REPORTE DE AJUSTE - CRASH ASESORES
-----------------------------------
-ASEGURADORA: ${datos.aseguradora}
-REPORTE: ${datos.reporte}
-SINIESTRO: ${datos.siniestro}
-ATENCIÓN: ${datos.atencion.join(', ') || 'N/A'}
-ACUERDOS: ${datos.acuerdos}
-RESPONSABILIDAD: ${datos.responsabilidad}
-CIRCUNSTANCIAS: ${datos.circunstancias}
-IMPROCEDENTES: ${datos.improcedentes}
-
-UBICACIÓN: ${maps}
-----------------------------------
-TOTAL DE ARCHIVOS ADJUNTOS: ${attachments.length}
-      `;
-
-      await MailComposer.composeAsync({
-        recipients: ['tu-correo@ejemplo.com'],
-        subject: asunto,
-        body: cuerpo,
-        attachments: attachments.map(a => a.uri)
-      });
-    } catch (e) { Alert.alert("Error", "Fallo al enviar"); }
-    setLoading(false);
-  };
-
-  const logout = () => {
-    Alert.alert("Cerrar Sesión", "¿Borrar datos y salir?", [
-      { text: "No" }, { text: "Sí", onPress: () => { setAttachments([]); setDatos(INICIAL); BackHandler.exitApp(); } }
-    ]);
-  };
+  if (accesoConcedido === false) return <View style={styles.bloqueoCont}><Text style={{color:'white'}}>{mensajeBloqueo}</Text><TouchableOpacity onPress={verificarSeguridad} style={styles.btnReintentar}><Text style={{color:'white'}}>Reintentar</Text></TouchableOpacity></View>;
+  if (accesoConcedido === null) return <View style={styles.centrado}><ActivityIndicator size="large" color="#003366" /></View>;
 
   return (
     <View style={styles.main}>
       <StatusBar barStyle="light-content" />
       <View style={styles.header}>
-        <TouchableOpacity onPress={logout}><Text style={{color: 'red', fontWeight: 'bold', fontSize: 12}}>SALIR</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => { setAttachments([]); setDatos(INICIAL); BackHandler.exitApp(); }}><Text style={{color: 'red', fontWeight: 'bold'}}>SALIR</Text></TouchableOpacity>
         <Text style={styles.headT}>CRASH ASESORES</Text>
         <View style={{width: 40}} />
       </View>
-      
       <ScrollView contentContainerStyle={{padding: 15}}>
         <View style={styles.card}>
-          <TouchableOpacity style={styles.fila} onPress={() => { setModalData({ title: 'ASEGURADORA', options: LISTAS.aseguradora, field: 'aseguradora' }); setModalVisible(true); }}>
-            <Text style={styles.labelF}>ASEGURADORA:</Text><Text style={styles.valF}>{datos.aseguradora}</Text>
-          </TouchableOpacity>
-
-          <View style={styles.fila}>
-            <Text style={styles.labelF}>REPORTE:</Text>
-            <TextInput style={styles.inputF} value={datos.reporte} keyboardType="numeric" placeholder="0000" onChangeText={(t) => setDatos({...datos, reporte: t})} returnKeyType="next" onSubmitEditing={() => refSiniestro.current.focus()} />
-          </View>
-
-          <View style={styles.fila}>
-            <Text style={styles.labelF}>SINIESTRO:</Text>
-            <TextInput style={styles.inputF} ref={refSiniestro} value={datos.siniestro} keyboardType="numeric" placeholder="0000" onChangeText={(t) => setDatos({...datos, siniestro: t})} />
-          </View>
-
-          <TouchableOpacity style={styles.fila} onPress={() => { setModalData({ title: 'ATENCION', options: LISTAS.atencion, field: 'atencion' }); setModalVisible(true); }}>
-            <Text style={styles.labelF}>ATENCION:</Text><Text style={styles.valF}>{datos.atencion.length} Selecc.</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.fila} onPress={() => { setModalData({ title: 'ACUERDOS', options: LISTAS.acuerdos, field: 'acuerdos' }); setModalVisible(true); }}>
-            <Text style={styles.labelF}>ACUERDOS:</Text><Text style={styles.valF}>{datos.acuerdos}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.fila} onPress={() => { setModalData({ title: 'RESPONSABILIDAD', options: LISTAS.responsabilidad, field: 'responsabilidad' }); setModalVisible(true); }}>
-            <Text style={styles.labelF}>RESPONSABILIDAD:</Text><Text style={styles.valF}>{datos.responsabilidad}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.fila} onPress={() => { setModalData({ title: 'CIRCUNSTANCIAS', options: LISTAS.circunstancias, field: 'circunstancias' }); setModalVisible(true); }}>
-            <Text style={styles.labelF}>CIRCUNSTANCIAS:</Text><Text style={styles.valF}>{datos.circunstancias}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.fila} onPress={() => { setModalData({ title: 'IMPROCEDENTES', options: LISTAS.improcedentes, field: 'improcedentes' }); setModalVisible(true); }}>
-            <Text style={styles.labelF}>IMPROCEDENTES:</Text><Text style={styles.valF}>{datos.improcedentes}</Text>
-          </TouchableOpacity>
+          <Fila label="ASEGURADORA" field="aseguradora" val={datos.aseguradora} />
+          <Fila label="REPORTE" field="reporte" val={datos.reporte} isInput />
+          <Fila label="SINIESTRO" field="siniestro" val={datos.siniestro} isInput />
+          <Fila label="ATENCION" field="atencion" val={datos.atencion.length + " Selecc."} />
+          <Fila label="ACUERDOS" field="acuerdos" val={datos.acuerdos} />
+          <Fila label="RESPONSABILIDAD" field="responsabilidad" val={datos.responsabilidad} />
+          <Fila label="CIRCUNSTANCIAS" field="circunstancias" val={datos.circunstancias} />
+          <Fila label="IMPROCEDENTES" field="improcedentes" val={datos.improcedentes} />
         </View>
-
-        <Carpeta titulo="FOTOS ASEGURADO" 
-lista={CATS.asegurado} exp={aseguradoExp} setExp={setAseguradoExp} attachments={attachments} setActiveCat={setActiveCat} setSourceVisible={setSourceVisible} setReviewVisible={setReviewVisible} />
+        <Carpeta titulo="FOTOS ASEGURADO" lista={CATS.asegurado} exp={aseguradoExp} setExp={setAseguradoExp} attachments={attachments} setActiveCat={setActiveCat} setSourceVisible={setSourceVisible} setReviewVisible={setReviewVisible} />
         <Carpeta titulo="FOTOS TERCERO" lista={CATS.tercero} exp={terceroExp} setExp={setTerceroExp} attachments={attachments} setActiveCat={setActiveCat} setSourceVisible={setSourceVisible} setReviewVisible={setReviewVisible} />
-
-        <TouchableOpacity style={styles.btnE} onPress={enviar} disabled={loading}>
-          {loading ? <ActivityIndicator color="#003366" /> : <Text style={styles.btnET}>📩 ENVIAR REPORTE FINAL</Text>}
-        </TouchableOpacity>
+        <TouchableOpacity style={styles.btnE} onPress={enviar} disabled={loading}>{loading ? <ActivityIndicator color="#003366" /> : <Text style={styles.btnET}>📩 ENVIAR REPORTE FINAL</Text>}</TouchableOpacity>
       </ScrollView>
 
-      {/* MODAL CÁMARA PREVIEW */}
       <Modal visible={preVisible} animationType="fade">
         <View style={styles.preF}>
           <Image source={{uri: tempUri}} style={[styles.preI, {transform: [{rotate: `${tempRot}deg`}]}]} />
           <View style={styles.preB}>
-            <TouchableOpacity style={styles.pBtn} onPress={() => setTempRot((tempRot + 90) % 360)}><Text style={styles.pBtnT}>ROTAR 🔄</Text></TouchableOpacity>
-            <TouchableOpacity style={[styles.pBtn, {backgroundColor: '#2d6a2d'}]} onPress={() => { setAttachments([...attachments, {id: Date.now(), uri: tempUri, label: activeCat, rotation: tempRot, type: 'image'}]); manejarArchivo('camara'); }}><Text style={styles.pBtnT}>OTRA</Text></TouchableOpacity>
-            <TouchableOpacity style={[styles.pBtn, {backgroundColor: '#003366'}]} onPress={() => { setAttachments([...attachments, {id: Date.now(), uri: tempUri, label: activeCat, rotation: tempRot, type: 'image'}]); setPreVisible(false); }}><Text style={styles.pBtnT}>LISTO</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.pBtn} onPress={() => setTempRot((tempRot + 90) % 360)}><Text style={styles.pBtnT}>ROTAR</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.pBtn, {backgroundColor: '#2d6a2d'}]} onPress={async () => { const r = await procesarYRespaldar(tempUri, activeCat); setAttachments([...attachments, {id: Date.now(), uri: r, label: activeCat, rotation: tempRot, type: 'image'}]); manejarArchivo('camara'); }}><Text style={styles.pBtnT}>OTRA</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.pBtn,
+    {backgroundColor: '#003366'}]} onPress={async () => { const r = await procesarYRespaldar(tempUri, activeCat); setAttachments([...attachments, {id: Date.now(), uri: r, label: activeCat, rotation: tempRot, type: 'image'}]); setPreVisible(false); }}><Text style={styles.pBtnT}>LISTO</Text></TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* MODAL REVISIÓN */}
-      <Modal visible={reviewVisible} animationType="slide">
-        <View style={styles.revC}>
-          <Text style={styles.revTi}>VISUALIZAR / ELIMINAR / ROTAR</Text>
-          <FlatList data={attachments} numColumns={2} renderItem={({item}) => (
-            <View style={styles.revB}>
-              {item.type === 'image' ? <Image source={{uri: item.uri}} style={[styles.revI, {transform: [{rotate: `${item.rotation}deg`}]}]} /> : <View style={[styles.revI, styles.pdfB]}><Text>📄 PDF</Text></View>}
-              <Text numberOfLines={1} style={styles.revL}>{item.label}</Text>
-              <View style={styles.revA}>
-                <TouchableOpacity onPress={() => setAttachments(attachments.map(a => a.id === item.id ? {...a, rotation: (a.rotation + 90) % 360} : a))}><Text style={{fontSize: 20}}>🔄</Text></TouchableOpacity>
-                <TouchableOpacity onPress={async () => await Sharing.shareAsync(item.uri)}><Text style={{fontSize: 20}}>👁️</Text></TouchableOpacity>
-                <TouchableOpacity onPress={() => setAttachments(attachments.filter(a => a.id !== item.id))}><Text style={{fontSize: 20}}>🗑️</Text></TouchableOpacity>
-              </View>
-            </View>
-          )} />
-          <TouchableOpacity style={styles.revCl} onPress={() => setReviewVisible(false)}><Text style={{color: 'white', fontWeight: 'bold'}}>GUARDAR Y CERRAR</Text></TouchableOpacity>
-        </View>
-      </Modal>
-
-      {/* OTROS MODALES */}
-      <Modal visible={sourceVisible} transparent={true}><View style={styles.mF}><View style={styles.mC}>
-          <Text style={styles.mT}>Origen: {activeCat}</Text>
-          <TouchableOpacity style={styles.sB} onPress={() => manejarArchivo('camara')}><Text>📷 Cámara</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.sB} onPress={() => manejarArchivo('galeria')}><Text>🖼️ Galería (Multiselección)</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.sB} onPress={() => manejarArchivo('drive')}><Text>📁 Drive / Archivos (Multiselección)</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.sB, {backgroundColor: '#eee'}]} onPress={() => setSourceVisible(false)}><Text style={{color: 'red'}}>Cancelar</Text></TouchableOpacity>
-      </View></View></Modal>
-
-      <Modal visible={modalVisible} transparent={true} animationType="slide"><View style={styles.mF}><View style={styles.mC}>
-          <Text style={styles.mT}>{modalData.title}</Text>
-          <FlatList data={modalData.options} renderItem={({item}) => (
-            <TouchableOpacity style={styles.itL} onPress={() => {
-              if (modalData.field === 'atencion') {
-                const n = datos.atencion.includes(item) ? datos.atencion.filter(x => x !== item) : [...datos.atencion, item];
-                setDatos({...datos, atencion: n});
-              } else { setDatos({...datos, [modalData.field]: item}); setModalVisible(false); }
-            }}>
-              <Text>{item} {datos.atencion.includes(item) ? '✅' : ''}</Text>
-            </TouchableOpacity>
-          )} />
-          <TouchableOpacity style={styles.btnC} onPress={() => setModalVisible(false)}><Text style={{color: 'white'}}>CERRAR</Text></TouchableOpacity>
-      </View></View></Modal>
+      <Modal visible={reviewVisible} animationType="slide"><View style={styles.revC}><Text style={styles.revTi}>REVISAR / ROTAR / ELIMINAR</Text><FlatList data={attachments} numColumns={2} renderItem={({item}) => ( <View style={styles.revB}> {item.type === 'image' ? <Image source={{uri: item.uri}} style={[styles.revI, {transform: [{rotate: `${item.rotation}deg`}]}]} /> : <View style={[styles.revI, styles.pdfB]}><Text>📄 PDF</Text></View>} <Text numberOfLines={1} style={styles.revL}>{item.label}</Text><View style={styles.revA}><TouchableOpacity onPress={() => setAttachments(attachments.map(a => a.id === item.id ? {...a, rotation: (a.rotation + 90) % 360} : a))}><Text>🔄</Text></TouchableOpacity><TouchableOpacity onPress={async () => await Sharing.shareAsync(item.uri)}><Text>👁️</Text></TouchableOpacity><TouchableOpacity onPress={() => setAttachments(attachments.filter(a => a.id !== item.id))}><Text>🗑️</Text></TouchableOpacity></View></View> )} /><TouchableOpacity style={styles.revCl} onPress={() => setReviewVisible(false)}><Text style={{color:'white', fontWeight:'bold'}}>CERRAR</Text></TouchableOpacity></View></Modal>
+      <Modal visible={sourceVisible} transparent={true}><View style={styles.mF}><View style={styles.mC}><Text style={styles.mT}>Origen: {activeCat}</Text><TouchableOpacity style={styles.sB} onPress={() => manejarArchivo('camara')}><Text>📷 Cámara</Text></TouchableOpacity><TouchableOpacity style={styles.sB} onPress={() => manejarArchivo('galeria')}><Text>🖼️ Galería (Multi)</Text></TouchableOpacity><TouchableOpacity style={styles.sB} onPress={() => manejarArchivo('drive')}><Text>📁 Drive / Archivos (Multi)</Text></TouchableOpacity><TouchableOpacity onPress={() => setSourceVisible(false)} style={styles.sB}><Text style={{color:'red'}}>Cancelar</Text></TouchableOpacity></View></View></Modal>
+      <Modal visible={modalVisible} transparent={true} animationType="slide"><View style={styles.mF}><View style={styles.mC}><Text style={styles.mT}>{modalData.title}</Text><FlatList data={modalData.options} renderItem={({item}) => ( <TouchableOpacity style={styles.itL} onPress={() => { if (modalData.field === 'atencion') { const n = datos.atencion.includes(item) ? datos.atencion.filter(x => x !== item) : [...datos.atencion, item]; setDatos({...datos, atencion: n}); } else { setDatos({...datos, [modalData.field]: item}); setModalVisible(false); } }}><Text>{item} {datos.atencion.includes(item) ? '✅' : ''}</Text></TouchableOpacity> )} /><TouchableOpacity style={styles.btnC} onPress={() => setModalVisible(false)}><Text style={{color: 'white'}}>CERRAR</Text></TouchableOpacity></View></View></Modal>
     </View>
   );
 }
@@ -230,22 +192,17 @@ lista={CATS.asegurado} exp={aseguradoExp} setExp={setAseguradoExp} attachments={
 function Carpeta({ titulo, lista, exp, setExp, attachments, setActiveCat, setSourceVisible, setReviewVisible }) {
   return (
     <View style={{marginTop: 10}}>
-      <TouchableOpacity style={titulo.includes("ASEGURADO") ? styles.barV : styles.barA} onPress={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setExp(!exp); }}>
-        <Text style={styles.barT}>{titulo}</Text><Text style={styles.barT}>{exp ? '▲' : '▼'}</Text>
-      </TouchableOpacity>
-      {exp && lista.map((it, i) => {
-        const c = attachments.filter(a => a.label === it).length;
-        return (
-          <View key={i} style={styles.itF}>
-            <Text style={styles.itFT}>{it}</Text>
-            <View style={{flexDirection: 'row', alignItems: 'center'}}>
-              <TouchableOpacity onPress={() => setReviewVisible(true)}><Text style={{fontSize: 20, marginRight: 10}}>👁️</Text></TouchableOpacity>
-              {c > 0 && <View style={styles.badge}><Text style={styles.badgeT}>{c}</Text></View>}
-              <TouchableOpacity onPress={() => { setActiveCat(it); setSourceVisible(true); }}><Text style={{fontSize: 24, marginLeft: 10}}>📷</Text></TouchableOpacity>
-            </View>
+      <TouchableOpacity style={titulo.includes("ASE") ? styles.barV : styles.barA} onPress={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setExp(!exp); }}><Text style={styles.barT}>{titulo}</Text><Text style={styles.barT}>{exp ? '▲' : '▼'}</Text></TouchableOpacity>
+      {exp && lista.map((it, i) => (
+        <View key={i} style={styles.itF}>
+          <Text style={styles.itFT}>{it}</Text>
+          <View style={{flexDirection: 'row', alignItems: 'center'}}>
+            <TouchableOpacity onPress={() => setReviewVisible(true)}><Text style={{fontSize: 20, marginRight: 10}}>👁️</Text></TouchableOpacity>
+            {attachments.filter(a => a.label === it).length > 0 && <View style={styles.badge}><Text style={styles.badgeT}>{attachments.filter(a => a.label === it).length}</Text></View>}
+            <TouchableOpacity onPress={() => { setActiveCat(it); setSourceVisible(true); }}><Text style={{fontSize: 24, marginLeft: 10}}>📷</Text></TouchableOpacity>
           </View>
-        )
-      })}
+        </View>
+      ))}
     </View>
   );
 }
@@ -257,7 +214,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: 'white', borderRadius: 15, padding: 10, elevation: 4 },
   fila: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee', alignItems: 'center' },
   labelF: { color: '#666', fontWeight: 'bold', fontSize: 11 },
-  valF: { color: '#003366', fontWeight: 'bold', fontSize: 14 },
+  valF: { color: '#003366', fontWeight: 'bold', fontSize: 13 },
   inputF: { color: '#003366', fontWeight: 'bold', textAlign: 'right', width: 120, padding: 5 },
   barV: { backgroundColor: '#2d6a2d', padding: 15, borderRadius: 10, flexDirection: 'row', justifyContent: 'space-between' },
   barA: { backgroundColor: '#003366', padding: 15, borderRadius: 10, flexDirection: 'row', justifyContent: 'space-between' },
@@ -286,5 +243,8 @@ const styles = StyleSheet.create({
   mT: { fontSize: 16, fontWeight: 'bold', marginBottom: 15, textAlign: 'center', color: '#003366' },
   sB: { padding: 18, borderBottomWidth: 1, borderBottomColor: '#eee', alignItems: 'center' },
   itL: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  btnC: { backgroundColor: '#003366', padding: 15, borderRadius: 10, marginTop: 10, alignItems: 'center' }
-});                                                    
+  btnC: { backgroundColor: '#003366', padding: 15, borderRadius: 10, marginTop: 10, alignItems: 'center' },
+  centrado: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  bloqueoCont: { flex: 1, backgroundColor: '#003366', justifyContent: 'center', alignItems: 'center' },
+  btnReintentar: { marginTop: 20, padding: 10, backgroundColor: '#002244', borderRadius: 5 }
+});                                                                          
