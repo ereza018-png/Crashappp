@@ -6,5 +6,5 @@
       "correo": "tu-correo@ejemplo.com"
     }
   ],
-  "mensaje_bloqueo": "ACCESO DENEGADO.\n\nEste usuario no se encuentra activo en el sistema de Crash Asesores."
+  "mensaje_bloqueo": "ACCESO DENEGADO.\n\nEste usuario ha sido dado de baja o no cuenta con permisos activos en Crash Asesores."
 }
