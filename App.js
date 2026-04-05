@@ -8,54 +8,37 @@ import * as Sharing from 'expo-sharing';
 
 const { width } = Dimensions.get('window');
 
-// Habilitar animaciones suaves en Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const ESTADO_INICIAL = {
-  aseguradora: 'Seleccionar', reporte: '', siniestro: '', atencion: [],
-  acuerdos: 'Seleccionar', responsabilidad: 'Seleccionar', circunstancias: 'Seleccionar', improcedentes: 'Seleccionar'
-};
+const INICIAL = { aseguradora: 'Seleccionar', reporte: '', siniestro: '', atencion: [], acuerdos: 'Seleccionar', responsabilidad: 'Seleccionar', circunstancias: 'Seleccionar', improcedentes: 'Seleccionar' };
 
 export default function App() {
-  // --- REFS PARA EL "TAB" (SALTAR CAMPOS) ---
   const refSiniestro = useRef();
-
-  // --- ESTADOS ---
-  const [datos, setDatos] = useState(ESTADO_INICIAL);
+  const [datos, setDatos] = useState(INICIAL);
   const [attachments, setAttachments] = useState([]);
   const [loading, setLoading] = useState(false);
-  
-  // Modales
   const [modalVisible, setModalVisible] = useState(false);
   const [modalData, setModalData] = useState({ title: '', options: [], field: '' });
   const [sourceVisible, setSourceVisible] = useState(false);
   const [reviewVisible, setReviewVisible] = useState(false);
+  const [aseguradoExp, setAseguradoExp] = useState(true);
+  const [terceroExp, setTerceroExp] = useState(false);
   
-  // Multitoma con Rotación en Cámara (Preview Modal)
-  const [activeCategory, setActiveCategory] = useState('');
-  const [previewVisible, setPreviewVisible] = useState(false);
-  const [tempPhoto, setTempPhoto] = useState(null);
-  const [tempRotation, setTempRotation] = useState(0);
-
-  // Modal para Visualizar Fotos/PDFs de "Archivo"
-  const [filePreviewVisible, setFilePreviewVisible] = useState(false);
-  const [currentFilePreview, setCurrentFilePreview] = useState(null);
-
-  // Acordeones
-  const [aseguradoExpanded, setAseguradoExpanded] = useState(true);
-  const [terceroExpanded, setTerceroExpanded] = useState(false);
+  // Multitoma
+  const [activeCat, setActiveCat] = useState('');
+  const [preVisible, setPreVisible] = useState(false);
+  const [tempUri, setTempUri] = useState(null);
+  const [tempRot, setTempRot] = useState(0);
 
   useEffect(() => {
     (async () => {
       await Location.requestForegroundPermissionsAsync();
       await ImagePicker.requestCameraPermissionsAsync();
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
     })();
   }, []);
 
-  // --- LISTADOS COMPLETOS ---
   const LISTAS = {
     aseguradora: ["HDI", "EL ÁGUILA", "GEN DE SEG", "ALLIANZ", "ANA SEGUROS", "CHUBB", "OTRAS"],
     atencion: ["COMPLEMENTARIA", "SIN PÓLIZA", "DIVERSOS", "KM", "PEAJE"],
@@ -65,322 +48,209 @@ export default function App() {
     improcedentes: ["OTRO", "CAMBIO DE CONDUCTOR", "COBERTURA NO AMPARADA (SEGURO DE LLANTAS Y RINES)", "DECLARACIÓN", "EXTENSIÓN DE RESPONSABILIDAD CIVIL", "FALLA MECÁNICA", "LICENCIA", "NO CONCUERDAN DAÑOS DE LOS AUTOMOVILES", "NO ES ASEGURADO", "NO HAY COLISIÓN", "PÓLIZA CANCELADA", "PÓLIZA LIMITADA", "PÓLIZA NO AMPARA DAÑOS", "PÓLIZA RECIENTE", "USO DISTINTO AL CONTRATADO", "PÓLIZA RC", "RECHAZO", "DESISTIMIENTO"]
   };
 
-  const SUB_CATEGORIAS = {
+  const CATS = {
     asegurado: ["MÉTODO CRONOS", "DAÑOS", "DUA ANVERSO", "DUA REVERSO", "PLACAS", "NÚMERO DE SERIE", "ODÓMETRO", "LICENCIA", "TARJETA CIRCULACIÓN", "IDENTIFICACIONES", "ENCUESTA SATISFACCIÓN", "VOLANTES", "OTROS DOCUMENTOS"],
     tercero: ["DOCUMENTOS", "VEHÍCULO TERCERO"]
   };
 
-  // --- LÓGICA DE CAPTURA Y MULTITOMA (CON ROTAR Y GUARDAR/OTRA) ---
-  const manejarCaptura = async (tipo) => {
-    let result;
-    const options = { quality: 0.5 }; // COMPRESIÓN Al 50%
-
-    if (tipo === 'camara') {
-      setSourceVisible(false);
-      result = await ImagePicker.launchCameraAsync(options);
-    } else if (tipo === 'galeria') {
-      result = await ImagePicker.launchImageLibraryAsync(options);
+  const manejarArchivo = async (modo) => {
+    let res;
+    if (modo === 'camara') {
+      res = await ImagePicker.launchCameraAsync({ quality: 0.5 });
+      if (!res.canceled) { setTempUri(res.assets[0].uri); setTempRot(0); setPreVisible(true); }
+    } else if (modo === 'galeria') {
+      res = await ImagePicker.launchImageLibraryAsync({ quality: 0.5 });
+      if (!res.canceled) adjuntar(res.assets[0].uri, 'image');
     } else {
-      // DRIVE / ARCHIVOS
-      result = await DocumentPicker.getDocumentAsync({ type: "*/*" });
+      res = await DocumentPicker.getDocumentAsync({ type: "*/*" });
+      if (!res.canceled) adjuntar(res.assets[0].uri, res.assets[0].mimeType.includes('pdf') ? 'pdf' : 'image');
     }
-
-    if (!result.canceled) {
-      if (tipo === 'camara') {
-        const uri = result.assets ? result.assets[0].uri : result.uri;
-        setTempPhoto(uri);
-        setTempRotation(0);
-        setPreviewVisible(true);
-      } else if (tipo === 'galeria') {
-        const uri = result.assets[0].uri;
-        setAttachments([...attachments, { id: Date.now(), uri, label: activeCategory, rotation: 0, type: 'image' }]);
-        setSourceVisible(false);
-      } else if (tipo === 'drive') {
-        // DRIVE / ARCHIVOS - Visualizar antes de agregar
-        const uri = result.assets ? result.assets[0].uri : result.uri;
-        const name = result.assets ? result.assets[0].name : result.name;
-        const mimeType = result.assets ? result.assets[0].mimeType : result.mimeType;
-        setCurrentFilePreview({ id: Date.now(), uri, name, label: activeCategory, type: mimeType === 'application/pdf' ? 'pdf' : 'image', rotation: 0 });
-        setSourceVisible(false);
-        setFilePreviewVisible(true);
-      }
-    }
+    setSourceVisible(false);
   };
 
-  // Guardar multitoma (Listo u Otra)
-  const guardarYContinuarMultitoma = (seguir) => {
-    // Al guardar, aplicamos la rotación temporal que eligió el usuario en el modal
-    setAttachments([...attachments, { id: Date.now(), uri: tempPhoto, label: activeCategory, rotation: tempRotation, type: 'image' }]);
-    setPreviewVisible(false);
-    if (seguir) {
-      // Abre la cámara de nuevo inmediatamente
-      setTimeout(() => manejarCaptura('camara'), 300);
-    }
+  const adjuntar = (uri, type, rot = 0) => {
+    setAttachments([...attachments, { id: Date.now(), uri, type, label: activeCat, rotation: rot }]);
   };
 
-  // Ver archivo en grande (visualizar)
-  const verArchivoInGrande = async (uri) => {
-    if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri);
-  };
-
-  // Limpiar y Salir (exit app)
-  const limpiarYSalir = () => {
-    Alert.alert("Cerrar Sesión", "¿Estás seguro de borrar todo y salir de la aplicación?", [
-      { text: "No" },
-      { text: "Sí", onPress: () => { 
-        setDatos(ESTADO_INICIAL); 
-        setAttachments([]); 
-        BackHandler.exitApp(); // SALE DE LA APP
-      } }
-    ]);
-  };
-
-  // Enviar correo (con asunto final y compresión)
-  const enviarReporteFinal = async () => {
+  const enviar = async () => {
     setLoading(true);
     try {
-      if (!datos.reporte || !datos.siniestro) {
-        Alert.alert("Atención", "Escribe el número de Reporte y Siniestro.");
-        setLoading(false);
-        return;
-      }
-      
       let loc = await Location.getCurrentPositionAsync({});
-      const mapsUrl = `https://www.google.com/maps?q=${loc.coords.latitude},${loc.coords.longitude}`;
-      
-      // ASUNTO FINAL SOLICITADO
-      const atencionText = datos.atencion.length > 0 ? datos.atencion.join(' ') : 'Sin atención';
-      const asuntoFinal = `${datos.aseguradora} REPORTE ${datos.reporte} SINIESTRO ${datos.siniestro} ${atencionText}`;
-
+      const maps = `https://www.google.com/maps?q=${loc.coords.latitude},${loc.coords.longitude}`;
+      const asunto = `${datos.aseguradora} REPORTE ${datos.reporte} SINIESTRO ${datos.siniestro} ${datos.atencion.join(' ')}`;
       await MailComposer.composeAsync({
-        recipients: ['tu-correo@ejemplo.com'], // Cambia esto
-        subject: asuntoFinal,
-        body: `REPORTE CRASH ASESORES\n\nUbicación: ${mapsUrl}\nFotos: ${attachments.length}`,
-        attachments: attachments.map(a => a.uri),
+        recipients: ['tu-correo@ejemplo.com'],
+        subject: asunto,
+        body: `UBICACIÓN: ${maps}\nTOTAL ARCHIVOS: ${attachments.length}`,
+        attachments: attachments.map(a => a.uri)
       });
-    } catch (e) { Alert.alert("Error", "No se pudo preparar el envío."); }
+    } catch (e) { Alert.alert("Error", "No se pudo enviar"); }
     setLoading(false);
   };
 
-  // --- COMPONENTES DE FILAS (REUSABLES) ---
-  const FilaDato = ({ label, valor, field, isInput = false }) => (
+  const Fila = ({ label, field, val, isInput }) => (
     <View style={styles.fila}>
-      <Text style={styles.labelFila}>{label}:</Text>
+      <Text style={styles.labelF}>{label}:</Text>
       {isInput ? (
-        <TextInput 
-          style={styles.inputFila} 
-          value={valor} 
-          onChangeText={(t) => setDatos({...datos, [field]: t})} 
-          keyboardType="numeric" placeholder="0000"
-          returnKeyType="next"
-          onSubmitEditing={() => refSiniestro.current.focus()}
-        />
+        <TextInput style={styles.inputF} value={val} keyboardType="numeric" placeholder="0000"
+          onChangeText={(t) => setDatos({...datos, [field]: t})} returnKeyType="next"
+          onSubmitEditing={() => field === 'reporte' && refSiniestro.current.focus()}
+          ref={field === 'siniestro' ? refSiniestro : null} />
       ) : (
         <TouchableOpacity onPress={() => { setModalData({ title: label, options: LISTAS[field], field }); setModalVisible(true); }}>
-          <Text style={styles.valorFila}>{valor}</Text>
+          <Text style={styles.valF}>{val}</Text>
         </TouchableOpacity>
       )}
     </View>
   );
 
-  const CarpetaFotos = ({ label, expanded, setExpanded, listado }) => (
-    <View style={{marginTop: expanded ? 0 : 10}}>
-      <TouchableOpacity 
-        style={label === "FOTOS ASEGURADO" ? styles.btnVerde : styles.btnAzul} 
-        onPress={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setExpanded(!expanded); }}
-      >
-        <Text style={styles.btnT}>{label}</Text><Text style={{color:'white', fontWeight:'bold'}}>{expanded?'▲':'▼'}</Text>
+  const Carpeta = ({ titulo, lista, exp, setExp }) => (
+    <View style={{marginTop: 10}}>
+      <TouchableOpacity style={titulo.includes("ASEGURADO") ? styles.barV : styles.barA} onPress={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setExp(!exp); }}>
+        <Text style={styles.barT}>{titulo}</Text><Text style={styles.barT}>{exp ? '▲' : '▼'}</Text>
       </TouchableOpacity>
-      {expanded && listado.map((item, i) => {
-        const count = attachments.filter(a=>a.label===item).length;
+      {exp && lista.map((it, i) => {
+        const c = attachments.filter(a => a.label === it).length;
         return (
-          <View key={i} style={styles.itemF}>
-            <Text style={styles.itemFT}>{item}</Text>
-            <View style={{flexDirection:'row', alignItems:'center'}}>
-              {/* Ojo para revisar, badge verde para contador, cámara para tomar */}
-              <TouchableOpacity onPress={() => setReviewVisible(true)}><Text style={{fontSize:20, marginRight:10}}>👁️</Text></TouchableOpacity>
-              {count > 0 && <View style={styles.badge}><Text style={styles.badgeT}>{count}</Text></View>}
-              <TouchableOpacity onPress={() => { setActiveCategory(item); setSourceVisible(true); }}><Text style={{fontSize:24, marginLeft:10}}>📷</Text></TouchableOpacity>
+          <View key={i} style={styles.itF}>
+            <Text style={styles.itFT}>{it}</Text>
+            <View style={{flexDirection: 'row', alignItems: 'center'}}>
+              <TouchableOpacity onPress={() => setReviewVisible(true)}><Text style={{fontSize: 20, marginRight: 10}}>👁️</Text></TouchableOpacity>
+              {c > 0 && <View style={styles.badge}><Text style={styles.badgeT}>{c}</Text></View>}
+              <TouchableOpacity onPress={() => { setActiveCat(it); setSourceVisible(true); }}><Text style={{fontSize: 24, marginLeft: 10}}>📷</Text></TouchableOpacity>
             </View>
           </View>
-        );
+        )
       })}
     </View>
   );
 
   return (
-    <View style={styles.contenedor}>
+    <View style={styles.main}>
       <StatusBar barStyle="light-content" />
       <View style={styles.header}>
-        {/* BOTÓN CERRAR SESIÓN (EXIT) EN HEADER */}
-        <TouchableOpacity onPress={limpiarYSalir}><Text style={{color:'red', fontWeight:'bold', fontSize:12}}>Cerrar Sesión</Text></TouchableOpacity>
-        <Text style={styles.headerTexto}>CRASH ASESORES</Text>
-        <View style={{width:50}}/>
+        <TouchableOpacity onPress={() => BackHandler.exitApp()}><Text style={{color: 'red', fontWeight: 'bold'}}>SALIR</Text></TouchableOpacity>
+        <Text style={styles.headT}>CRASH ASESORES</Text>
+        <View style={{width: 40}} />
       </View>
       
-      <ScrollView contentContainerStyle={styles.scroll}>
-        {/* CARD DATOS - TECLADO NUMÉRICO Y TAB */}
+      <ScrollView contentContainerStyle={{padding: 15}}>
         <View style={styles.card}>
-          <FilaDato label="ASEGURADORA" valor={datos.aseguradora} field="aseguradora" />
-          <FilaDato label="REPORTE" valor={datos.reporte} field="reporte" isInput />
-          <FilaDato label="SINIESTRO" valor={datos.siniestro} field="siniestro" isInput />
-          <FilaDato label="ATENCION" valor={datos.atencion.length + " Selecc."} field="atencion" />
-          <FilaDato label="ACUERDOS" valor={datos.acuerdos} field="acuerdos" />
-          <FilaDato label="RESPONSABILIDAD" valor={datos.responsabilidad} field="responsabilidad" />
-          <FilaDato label="CIRCUNSTANCIAS" valor={datos.circunstancias} field="circunstancias" />
-          <FilaDato label="IMPROCEDENTES" valor={datos.improcedentes} field="improcedentes" />
+          <Fila label="ASEGURADORA" field="aseguradora" val={datos.aseguradora} />
+          <Fila label="REPORTE" field="reporte" val={datos.reporte} isInput />
+          <Fila label="SINIESTRO" field="siniestro" val={datos.siniestro} isInput />
+          <Fila label="ATENCION" field="atencion" val={datos.atencion.length + " Selecc."} />
+          <Fila label="ACUERDOS" field="acuerdos" val={datos.acuerdos} />
+          <Fila label="RESPONSABILIDAD" field="responsabilidad" val={datos.responsabilidad} />
+          <Fila label="CIRCUNSTANCIAS" field="circunstancias" val={datos.circunstancias} />
+          <Fila label="IMPROCEDENTES" field="improcedentes" val={datos.improcedentes} />
         </View>
 
-        {/* ACORDEONES (ASEGURADO Y TERCERO CON MISMOS COMPONENTES) */}
-        <CarpetaFotos label="FOTOS ASEGURADO" expanded={aseguradoExpanded} setExpanded={setAseguradoExpanded} listado={SUB_CATEGORIAS.asegurado} />
-        <CarpetaFotos label="FOTOS TERCERO" expanded={terceroExpanded} setExpanded={setTerceroExpanded} listado={SUB_CATEGORIAS.tercero} />
+        <Carpeta titulo="FOTOS ASEGURADO" lista={CATS.asegurado} exp={aseguradoExp} setExp={setAseguradoExp} />
+        <Carpeta titulo="FOTOS TERCERO" lista={CATS.tercero} exp={terceroExp} setExp={setTerceroExp} />
 
-        {/* BOTONES ACCIÓN */}
-        <TouchableOpacity style={styles.btnAmarillo} onPress={enviarReporteFinal} disabled={loading}>
-          {loading ? <ActivityIndicator color="#003366"/> : <Text style={styles.btnTEn}>📧 ENVIAR REPORTE FIN</Text>}
+        <TouchableOpacity style={styles.btnE} onPress={enviar} disabled={loading}>
+          {loading ? <ActivityIndicator color="#003366" /> : <Text style={styles.btnET}>📩 ENVIAR REPORTE FINAL</Text>}
         </TouchableOpacity>
-        
-        <TouchableOpacity style={{marginTop:20, marginBottom:10}} onPress={limpiarYSalir}><Text style={{color:'#666', textAlign:'center', textDecorationLine:'underline'}}>🗑️ LIMPIAR REPORTE</Text></TouchableOpacity>
       </ScrollView>
 
-      {/* --- MODAL CÁMARA PREVIEW (ROTAR, OTRA, LISTO) --- */}
-      <Modal visible={previewVisible}>
-        <View style={styles.preFondo}>
-          <Text style={styles.revTitModal}>PREVISUALIZACIÓN CÁMARA</Text>
-          <Image source={{uri: tempPhoto}} style={[styles.preImg, {transform: [{rotate: `${tempRotation}deg`}]}]} />
-          <View style={styles.preBtns}>
-            <TouchableOpacity style={styles.preBtn} onPress={() => setTempRotation((tempRotation+90)%360)}><Text style={styles.preBtnT}>ROTAR 🔄</Text></TouchableOpacity>
-            <TouchableOpacity style={[styles.preBtn, {backgroundColor:'#2d6a2d'}]} onPress={() => guardarYContinuarMultitoma(true)}><Text style={styles.preBtnT}>OTRA</Text></TouchableOpacity>
-            <TouchableOpacity style={[styles.preBtn, {backgroundColor:'#003366'}]} onPress={() => guardarYContinuarMultitoma(false)}><Text style={styles.preBtnT}>LISTO</Text></TouchableOpacity>
+      {/* --- MODAL CÁMARA (ROTAR Y MULTITOMA) --- */}
+      <Modal visible={preVisible} animationType="fade">
+        <View style={styles.preF}>
+          <Image source={{uri: tempUri}} style={[styles.preI, {transform: [{rotate: `${tempRot}deg`}]}]} />
+          <View style={styles.preB}>
+            <TouchableOpacity style={styles.pBtn} onPress={() => setTempRot((tempRot + 90) % 360)}><Text style={styles.pBtnT}>ROTAR 🔄</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.pBtn, {backgroundColor: '#2d6a2d'}]} onPress={() => { adjuntar(tempUri, 'image', tempRot); manejarArchivo('camara'); }}><Text style={styles.pBtnT}>OTRA</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.pBtn, {backgroundColor: '#003366'}]} onPress={() => { adjuntar(tempUri, 'image', tempRot); setPreVisible(false); }}><Text style={styles.pBtnT}>LISTO</Text></TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* --- MODAL REVISIÓN (FOTOS Y PDFs) --- */}
+      {/* --- MODAL REVISIÓN (VER Y ELIMINAR) --- */}
       <Modal visible={reviewVisible} animationType="slide">
-        <View style={styles.revFondo}>
-          <Text style={styles.revTit}>REVISAR / ROTAR / ELIMINAR</Text>
-          <FlatList data={attachments} numColumns={2} keyExtractor={item => item.id.toString()} renderItem={({item}) => (
-            <View style={styles.revBox}>
-              {item.type === 'image' ? (
-                <Image source={{uri: item.uri}} style={[styles.revImg, {transform: [{rotate: `${item.rotation}deg`}]}]} />
-              ) : (
-                <View style={[styles.revImg, {backgroundColor:'#eee', justifyContent:'center', alignItems:'center'}]}><Text style={{fontSize:40}}>📄</Text><Text style={{fontSize:10}}>PDF</Text></View>
-              )}
-              <Text numberOfLines={1} style={styles.revLabel}>{item.label}</Text>
-              <View style={styles.revActions}>
-                {item.type === 'image' && <TouchableOpacity onPress={() => setAttachments(attachments.map(a => a.id===item.id ? {...a, rotation: (a.rotation+90)%360}:a))}><Text>🔄</Text></TouchableOpacity>}
-                <TouchableOpacity onPress={() => verArchivoInGrande(item.uri)}><Text>👁️</Text></TouchableOpacity>
-                <TouchableOpacity onPress={() => setAttachments(attachments.filter(a=>a.id!==item.id))}><Text>🗑️</Text></TouchableOpacity>
+        <View style={styles.revC}>
+          <Text style={styles.revTi}>VISUALIZAR / ELIMINAR</Text>
+          <FlatList data={attachments} numColumns={2} renderItem={({item}) => (
+            <View style={styles.revB}>
+              {item.type === 'image' ? <Image source={{uri: item.uri}} style={[styles.revI, {transform: [{rotate: `${item.rotation}deg`}]}]} /> : <View style={[styles.revI, styles.pdfB]}><Text>📄 PDF</Text></View>}
+              <Text numberOfLines={1} style={styles.revL}>{item.label}</Text>
+              <View style={styles.revA}>
+                <TouchableOpacity onPress={async () => await Sharing.shareAsync(item.uri)}><Text style={{fontSize: 20}}>👁️</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => setAttachments(attachments.filter(a => a.id !== item.id))}><Text style={{fontSize: 20}}>🗑️</Text></TouchableOpacity>
               </View>
             </View>
           )} />
-          <TouchableOpacity style={styles.btnCerrarRev} onPress={() => setReviewVisible(false)}><Text style={{color:'white', fontWeight:'bold'}}>GUARDAR Y CERRAR</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.revCl} onPress={() => setReviewVisible(false)}><Text style={{color: 'white', fontWeight: 'bold'}}>CERRAR GALERÍA</Text></TouchableOpacity>
         </View>
       </Modal>
 
-      {/* --- MODAL PREVISUALIZAR ARCHIVO (SOLICITADO EN IMAGEN) --- */}
-      <Modal visible={filePreviewVisible} animationType="fade" transparent={true}>
-        <View style={styles.mFondo}>
-          <View style={styles.filePreviewCont}>
-            <Text style={styles.mTit}>Visualizar Archivo</Text>
-            {currentFilePreview?.type === 'image' ? (
-              <Image source={{uri: currentFilePreview?.uri}} style={styles.filePreviewImg} />
-            ) : (
-              <View style={[styles.filePreviewImg, {backgroundColor:'#f0f0f0', justifyContent:'center', alignItems:'center'}]}>
-                <Text style={{fontSize:60}}>📄</Text><Text style={{fontSize:12, fontWeight:'bold'}}>{currentFilePreview?.name}</Text>
-              </View>
-            )}
-            <View style={styles.preBtnsRow}>
-               <TouchableOpacity style={[styles.preBtn, {backgroundColor:'#003366'}]} onPress={() => { setAttachments([...attachments, currentFilePreview]); setFilePreviewVisible(false); Alert.alert("Éxito", "Adjuntado."); }}><Text style={styles.preBtnT}>Adjuntar</Text></TouchableOpacity>
-               <TouchableOpacity style={[styles.preBtn, {backgroundColor:'#cc0000'}]} onPress={() => setFilePreviewVisible(false)}><Text style={styles.preBtnT}>Cancelar</Text></TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* MODAL SELECTOR ORIGEN */}
+      {/* --- MODAL SELECTOR --- */}
       <Modal visible={sourceVisible} transparent={true}>
-        <View style={styles.mFondo}>
-          <View style={styles.mCont}>
-            <Text style={styles.mTit}>Origen de archivo: {activeCategory}</Text>
-            <TouchableOpacity style={styles.sBtn} onPress={() => manejarCaptura('camara')}><Text>📷 Cámara</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.sBtn} onPress={() => manejarCaptura('galeria')}><Text>🖼️ De Galería</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.sBtn} onPress={() => manejarCaptura('drive')}><Text>📁 De Drive / Archivos</Text></TouchableOpacity>
-            <TouchableOpacity style={[styles.sBtn, {backgroundColor:'#f8f8f8'}]} onPress={() => setSourceVisible(false)}><Text style={{color:'red'}}>Cancelar</Text></TouchableOpacity>
-          </View>
-        </View>
+        <View style={styles.mF}><View style={styles.mC}>
+          <Text style={styles.mT}>Origen: {activeCat}</Text>
+          <TouchableOpacity style={styles.sB} onPress={() => manejarArchivo('camara')}><Text>📷 Cámara</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.sB} onPress={() => manejarArchivo('galeria')}><Text>🖼️ Galería</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.sB} onPress={() => manejarArchivo('drive')}><Text>📁 Drive / Archivos</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.sB, {backgroundColor: '#eee'}]} onPress={() => setSourceVisible(false)}><Text style={{color: 'red'}}>Cancelar</Text></TouchableOpacity>
+        </View></View>
       </Modal>
 
-      {/* SELECTOR LISTAS */}
-      <Modal visible={modalVisible} transparent={true}>
-        <View style={styles.mFondo}>
-          <View style={styles.mCont}>
-            <Text style={styles.mTit}>{modalData.title}</Text>
-            <FlatList data={modalData.options} renderItem={({item}) => (
-              <TouchableOpacity style={styles.itemL} onPress={() => {
-                if(modalData.field==='atencion'){
-                  const n = datos.atencion.includes(item)?datos.atencion.filter(x=>x!==item):[...datos.atencion, item];
-                  setDatos({...datos, atencion:n});
-                } else { setDatos({...datos, [modalData.field]:item}); setModalVisible(false); }
-              }}>
-                <Text>{item} {datos.atencion.includes(item)?'✅':''}</Text>
-              </TouchableOpacity>
-            )} />
-            <TouchableOpacity style={styles.btnC} onPress={() => setModalVisible(false)}><Text style={{color:'white'}}>CERRAR</Text></TouchableOpacity>
-          </View>
-        </View>
+      {/* --- MODAL LISTAS --- */}
+      <Modal visible={modalVisible} transparent={true} animationType="slide">
+        <View style={styles.mF}><View style={styles.mC}>
+          <Text style={styles.mT}>{modalData.title}</Text>
+          <FlatList data={modalData.options} renderItem={({item}) => (
+            <TouchableOpacity style={styles.itL} onPress={() => {
+              if (modalData.field === 'atencion') {
+                const n = datos.atencion.includes(item) ? datos.atencion.filter(x => x !== item) : [...datos.atencion, item];
+                setDatos({...datos, atencion: n});
+              } else { setDatos({...datos, [modalData.field]: item}); setModalVisible(false); }
+            }}>
+              <Text>{item} {datos.atencion.includes(item) ? '✅' : ''}</Text>
+            </TouchableOpacity>
+          )} />
+          <TouchableOpacity style={styles.btnC} onPress={() => setModalVisible(false)}><Text style={{color: 'white'}}>CERRAR</Text></TouchableOpacity>
+        </View></View>
       </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  contenedor: { flex: 1, backgroundColor: '#e9effb' },
+  main: { flex: 1, backgroundColor: '#f0f4f8' },
   header: { backgroundColor: '#003366', paddingTop: 50, paddingBottom: 15, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' },
-  headerTexto: { color: 'white', fontWeight: 'bold', fontSize: 18, letterSpacing: 1 },
-  scroll: { padding: 15 },
-  card: { backgroundColor: 'white', borderRadius: 15, padding: 10, elevation: 4, marginBottom: 15 },
+  headT: { color: 'white', fontWeight: 'bold', fontSize: 18 },
+  card: { backgroundColor: 'white', borderRadius: 15, padding: 10, elevation: 4 },
   fila: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee', alignItems: 'center' },
-  labelFila: { color: '#666', fontWeight: 'bold', fontSize: 11 },
-  valorFila: { color: '#003366', fontWeight: 'bold', fontSize: 13 },
-  inputFila: { color: '#003366', fontWeight: 'bold', textAlign: 'right', width: 120 },
-  btnVerde: { backgroundColor: '#2d6a2d', padding: 15, borderRadius: 10, flexDirection:'row', justifyContent:'space-between', elevation: 2 },
-  btnAzul: { backgroundColor: '#003366', padding: 15, borderRadius: 10, flexDirection:'row', justifyContent:'space-between', elevation: 2 },
-  itemF: { backgroundColor:'white', padding:12, borderBottomWidth:1, borderBottomColor:'#eee', flexDirection:'row', justifyContent:'space-between', alignItems:'center' },
-  itemFT: { fontSize:12, color:'#444', fontWeight:'500' },
-  badge: { backgroundColor:'#4CD964', borderRadius:10, paddingHorizontal:6 },
-  badgeT: { color:'white', fontSize:11, fontWeight:'bold' },
-  btnAmarillo: { backgroundColor:'#ffcc00', padding:18, borderRadius:12, marginTop:20, alignItems:'center', elevation:3 },
-  btnT: { color:'white', fontWeight:'bold', fontSize:14 },
-  btnTEn: { color:'#003366', fontWeight:'bold', fontSize:16 },
-  
-  // Estilos de Previsialización (Multitoma)
-  preFondo: { flex: 1, backgroundColor: 'black', justifyContent: 'center' },
-  revTitModal: { fontSize: 16, color: 'white', fontWeight: 'bold', textAlign: 'center', marginBottom: 15 },
-  preImg: { width: '100%', height: '70%', resizeMode: 'contain' },
-  preBtns: { flexDirection: 'row', justifyContent: 'space-around', padding: 20 },
-  preBtn: { padding: 15, borderRadius: 10, width: width/3.5, alignItems: 'center', backgroundColor:'#4a5568' },
-  preBtnT: { color: 'white', fontWeight: 'bold' },
-
-  // Estilos de Revisión (Fotos y PDFs)
-  revFondo: { flex: 1, backgroundColor: 'white', paddingTop: 50, padding: 10 },
-  revTit: { fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 20, color:'#003366' },
-  revBox: { width: '48%', margin: '1%', backgroundColor: '#f9f9f9', padding: 8, borderRadius: 10, alignItems: 'center', borderWidth:1, borderColor:'#ddd' },
-  revImg: { width: '100%', height: 110, borderRadius: 8 },
-  revLabel: { fontSize: 9, marginTop: 5, fontWeight:'bold' },
-  revActions: { flexDirection: 'row', justifyContent: 'space-around', width: '100%', marginTop: 10 },
-  btnCerrarRev: { backgroundColor: '#003366', padding: 20, borderRadius: 10, marginTop: 10, alignItems: 'center' },
-
-  // Modal Visualizar Archivo
-  filePreviewCont: { backgroundColor:'white', borderRadius:20, padding:15, width:'90%', alignItems:'center' },
-  filePreviewImg: { width:'100%', height: width*0.8, borderRadius:10, marginBottom:15, resizeMode:'contain' },
-  preBtnsRow: { flexDirection:'row', width:'100%', justifyContent:'space-around' },
-
-  mFondo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 25 },
-  mCont: { backgroundColor: 'white', borderRadius: 20, padding: 20, maxHeight: '80%', width:'100%' },
-  mTit: { fontSize: 16, fontWeight: 'bold', marginBottom: 15, textAlign: 'center', color:'#003366' },
-  sBtn: { padding:18, borderBottomWidth:1, borderBottomColor:'#eee', alignItems:'center' },
-  itemL: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
+  labelF: { color: '#666', fontWeight: 'bold', fontSize: 11 },
+  valF: { color: '#003366', fontWeight: 'bold', fontSize: 14 },
+  inputF: { color: '#003366', fontWeight: 'bold', textAlign: 'right', width: 120 },
+  barV: { backgroundColor: '#2d6a2d', padding: 15, borderRadius: 10, flexDirection: 'row', justifyContent: 'space-between' },
+  barA: { backgroundColor: '#003366', padding: 15, borderRadius: 10, flexDirection: 'row', justifyContent: 'space-between' },
+  barT: { color: 'white', fontWeight: 'bold' },
+  itF: { backgroundColor: 'white', padding: 12, borderBottomWidth: 1, borderBottomColor: '#eee', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  itFT: { fontSize: 12, color: '#444' },
+  badge: { backgroundColor: '#4CD964', borderRadius: 10, paddingHorizontal: 6 },
+  badgeT: { color: 'white', fontSize: 11, fontWeight: 'bold' },
+  btnE: { backgroundColor: '#ffcc00', padding: 18, borderRadius: 12, marginTop: 20, alignItems: 'center' },
+  btnET: { color: '#003366', fontWeight: 'bold', fontSize: 16 },
+  preF: { flex: 1, backgroundColor: 'black', justifyContent: 'center' },
+  preI: { width: '100%', height: '70%', resizeMode: 'contain' },
+  preB: { flexDirection: 'row', justifyContent: 'space-around', padding: 20 },
+  pBtn: { padding: 15, backgroundColor: '#4a5568', borderRadius: 10, width: width / 3.5, alignItems: 'center' },
+  pBtnT: { color: 'white', fontWeight: 'bold', fontSize: 12 },
+  revC: { flex: 1, backgroundColor: 'white', paddingTop: 50, padding: 10 },
+  revTi: { fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 20, color: '#003366' },
+  revB: { width: '48%', margin: '1%', padding: 5, borderRadius: 10, borderWidth: 1, borderColor: '#ddd', alignItems: 'center' },
+  revI: { width: '100%', height: 110, borderRadius: 8 },
+  pdfB: { backgroundColor: '#eee', justifyContent: 'center', alignItems: 'center' },
+  revL: { fontSize: 9, marginTop: 5, fontWeight: 'bold' },
+  revA: { flexDirection: 'row', justifyContent: 'space-around', width: '100%', marginTop: 5 },
+  revCl: { backgroundColor: '#003366', padding: 20, borderRadius: 10, alignItems: 'center', marginTop: 10 },
+  mF: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 25 },
+  mC: { backgroundColor: 'white', borderRadius: 20, padding: 20, maxHeight: '80%' },
+  mT: { fontSize: 16, fontWeight: 'bold', marginBottom: 15, textAlign: 'center', color: '#003366' },
+  sB: { padding: 18, borderBottomWidth: 1, borderBottomColor: '#eee', alignItems: 'center' },
+  itL: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
   btnC: { backgroundColor: '#003366', padding: 15, borderRadius: 10, marginTop: 10, alignItems: 'center' }
 });
