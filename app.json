@@ -1,16 +1,29 @@
 {
-  "name": "crashito",
-  "version": "1.0.0",
-  "main": "node_modules/expo/AppEntry.js",
-  "dependencies": {
-    "expo": "~51.0.0",
-    "expo-location": "~17.0.1",
-    "expo-mail-composer": "~13.0.0",
-    "expo-image-picker": "~15.0.0",
-    "expo-document-picker": "~12.0.1",
-    "expo-sharing": "~12.0.1",
-    "expo-file-system": "~17.0.1",
-    "react": "18.2.0",
-    "react-native": "0.74.5"
+  "expo": {
+    "name": "Crashito",
+    "slug": "crashito",
+    "version": "1.0.0",
+    "android": {
+      "package": "com.ereza018.appcrashnueva",
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "splash": {
+      "backgroundColor": "#003366"
+    },
+    "plugins": [
+      "expo-location",
+      "expo-image-picker",
+      "expo-document-picker"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "3687876b-8496-4caf-8083-f29cfc9d7262"
+      }
+    }
   }
 }
