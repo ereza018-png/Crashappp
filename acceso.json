@@ -1,10 +1,4 @@
 {
-  "usuarios_autorizados": [
-    {
-      "id": "AJ01",
-      "nombre": "TU NOMBRE COMPLETO",
-      "correo": "tu-correo@ejemplo.com"
-    }
-  ],
-  "mensaje_bloqueo": "ACCESO DENEGADO.\n\nEste usuario ha sido dado de baja o no cuenta con permisos activos en Crash Asesores."
+  "usuarios_autorizados": [],
+  "mensaje_bloqueo": "ACCESO DENEGADO.\n\nEste usuario ha sido dado de baja del sistema Crash Asesores."
 }
