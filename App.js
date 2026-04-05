@@ -20,21 +20,17 @@ export default function App() {
   const [attachments, setAttachments] = useState([]);
   const [loading, setLoading] = useState(false);
   
-  // Modales
   const [modalVisible, setModalVisible] = useState(false);
   const [modalData, setModalData] = useState({ title: '', options: [], field: '' });
   const [sourceVisible, setSourceVisible] = useState(false);
   const [reviewVisible, setReviewVisible] = useState(false);
+  const [aseguradoExp, setAseguradoExp] = useState(true);
+  const [terceroExp, setTerceroExp] = useState(false);
   
-  // Multitoma y Selección
   const [activeCat, setActiveCat] = useState('');
   const [preVisible, setPreVisible] = useState(false);
   const [tempUri, setTempUri] = useState(null);
   const [tempRot, setTempRot] = useState(0);
-
-  // Acordeones
-  const [aseguradoExp, setAseguradoExp] = useState(true);
-  const [terceroExp, setTerceroExp] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -58,21 +54,18 @@ export default function App() {
     tercero: ["DOCUMENTOS", "VEHÍCULO TERCERO"]
   };
 
-  // --- LÓGICA DE CAPTURA MULTIPLE ---
   const manejarArchivo = async (modo) => {
     let res;
     if (modo === 'camara') {
       res = await ImagePicker.launchCameraAsync({ quality: 0.5 });
       if (!res.canceled) { setTempUri(res.assets[0].uri); setTempRot(0); setPreVisible(true); }
     } else if (modo === 'galeria') {
-      // PERMITIR SELECCIONAR VARIAS FOTOS
       res = await ImagePicker.launchImageLibraryAsync({ quality: 0.5, allowsMultipleSelection: true });
       if (!res.canceled) {
         const nuevos = res.assets.map(a => ({ id: Date.now() + Math.random(), uri: a.uri, type: 'image', label: activeCat, rotation: 0 }));
         setAttachments([...attachments, ...nuevos]);
       }
     } else {
-      // PERMITIR SELECCIONAR VARIOS ARCHIVOS/DRIVE
       res = await DocumentPicker.getDocumentAsync({ type: "*/*", multiple: true });
       if (!res.canceled) {
         const nuevos = res.assets.map(a => ({ id: Date.now() + Math.random(), uri: a.uri, type: a.mimeType.includes('pdf') ? 'pdf' : 'image', label: activeCat, rotation: 0 }));
@@ -87,11 +80,32 @@ export default function App() {
     try {
       let loc = await Location.getCurrentPositionAsync({});
       const maps = `https://www.google.com/maps?q=${loc.coords.latitude},${loc.coords.longitude}`;
+      
+      // ASUNTO SOLICITADO
       const asunto = `${datos.aseguradora} REPORTE ${datos.reporte} SINIESTRO ${datos.siniestro} ${datos.atencion.join(' ')}`;
+      
+      // CUERPO DEL CORREO CON TODOS LOS DATOS
+      const cuerpo = `
+REPORTE DE AJUSTE - CRASH ASESORES
+----------------------------------
+ASEGURADORA: ${datos.aseguradora}
+REPORTE: ${datos.reporte}
+SINIESTRO: ${datos.siniestro}
+ATENCIÓN: ${datos.atencion.join(', ') || 'N/A'}
+ACUERDOS: ${datos.acuerdos}
+RESPONSABILIDAD: ${datos.responsabilidad}
+CIRCUNSTANCIAS: ${datos.circunstancias}
+IMPROCEDENTES: ${datos.improcedentes}
+
+UBICACIÓN: ${maps}
+----------------------------------
+TOTAL DE ARCHIVOS ADJUNTOS: ${attachments.length}
+      `;
+
       await MailComposer.composeAsync({
         recipients: ['tu-correo@ejemplo.com'],
         subject: asunto,
-        body: `UBICACIÓN: ${maps}\nTOTAL ARCHIVOS: ${attachments.length}`,
+        body: cuerpo,
         attachments: attachments.map(a => a.uri)
       });
     } catch (e) { Alert.alert("Error", "Fallo al enviar"); }
@@ -110,7 +124,7 @@ export default function App() {
       {isInput ? (
         <TextInput 
           style={styles.inputF} 
-          value={datos[field]} // CORREGIDO: Bind directo al estado
+          value={datos[field]} 
           keyboardType="numeric" 
           placeholder="0000"
           onChangeText={(t) => setDatos({...datos, [field]: t})} 
@@ -177,7 +191,6 @@ export default function App() {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* MODAL CÁMARA PREVIEW */}
       <Modal visible={preVisible} animationType="fade">
         <View style={styles.preF}>
           <Image source={{uri: tempUri}} style={[styles.preI, {transform: [{rotate: `${tempRot}deg`}]}]} />
@@ -189,7 +202,6 @@ export default function App() {
         </View>
       </Modal>
 
-      {/* MODAL REVISIÓN */}
       <Modal visible={reviewVisible} animationType="slide">
         <View style={styles.revC}>
           <Text style={styles.revTi}>VISUALIZAR / ELIMINAR / ROTAR</Text>
@@ -208,16 +220,14 @@ export default function App() {
         </View>
       </Modal>
 
-      {/* MODAL SELECTOR */}
       <Modal visible={sourceVisible} transparent={true}><View style={styles.mF}><View style={styles.mC}>
           <Text style={styles.mT}>Origen: {activeCat}</Text>
           <TouchableOpacity style={styles.sB} onPress={() => manejarArchivo('camara')}><Text>📷 Cámara</Text></TouchableOpacity>
           <TouchableOpacity style={styles.sB} onPress={() => manejarArchivo('galeria')}><Text>🖼️ Galería (Multiselección)</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.sB} onPress={() => manejarArchivo('drive')}><Text>📁 Archivos / Drive (Multiselección)</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.sB} onPress={() => manejarArchivo('drive')}><Text>📁 Drive / Archivos (Multiselección)</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.sB, {backgroundColor: '#eee'}]} onPress={() => setSourceVisible(false)}><Text style={{color: 'red'}}>Cancelar</Text></TouchableOpacity>
       </View></View></Modal>
 
-      {/* MODAL LISTAS */}
       <Modal visible={modalVisible} transparent={true} animationType="slide"><View style={styles.mF}><View style={styles.mC}>
           <Text style={styles.mT}>{modalData.title}</Text>
           <FlatList data={modalData.options} renderItem={({item}) => (
@@ -273,4 +283,4 @@ const styles = StyleSheet.create({
   sB: { padding: 18, borderBottomWidth: 1, borderBottomColor: '#eee', alignItems: 'center' },
   itL: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
   btnC: { backgroundColor: '#003366', padding: 15, borderRadius: 10, marginTop: 10, alignItems: 'center' }
-});                                                                                            
+});
