@@ -281,5 +281,4 @@ const styles = StyleSheet.create({
   revA: { flexDirection: 'row', justifyContent: 'space-around', width: '100%', marginTop: 5 },
   revCl: { backgroundColor: '#003366', padding: 20, borderRadius: 10, alignItems: 'center', marginTop: 10 },
   mF: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 25 },
-  mC: { backgroundColor: 'white', borderRadius: 20, padding: 20, maxHeight: '80%' },
-  mT: { fontSize: 16, fontWeight: 'bold', m
+  mC: { backgroundColor: 'whit       
