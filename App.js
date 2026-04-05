@@ -295,4 +295,4 @@ const styles = StyleSheet.create({
   mItem: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
   mTxt: { fontSize: 13 },
   mCerrar: { backgroundColor: '#003366', padding: 12, borderRadius: 10, marginTop: 10, alignItems: 'center' }
-});
+});         
