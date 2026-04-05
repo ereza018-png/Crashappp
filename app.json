@@ -18,8 +18,7 @@
     "plugins": [
       "expo-location",
       "expo-image-picker",
-      "expo-document-picker",
-      "expo-sharing"
+      "expo-document-picker"
     ],
     "extra": {
       "eas": {
