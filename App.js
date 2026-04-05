@@ -166,7 +166,8 @@ export default function App() {
           <Fila label="IMPROCEDENTES" field="improcedentes" val={datos.improcedentes} />
         </View>
         <Carpeta titulo="FOTOS ASEGURADO" lista={CATS.asegurado} exp={aseguradoExp} setExp={setAseguradoExp} attachments={attachments} setActiveCat={setActiveCat} setSourceVisible={setSourceVisible} setReviewVisible={setReviewVisible} />
-        <Carpeta titulo="FOTOS TERCERO" lista={CATS.tercero} exp={terceroExp} setExp={setTerceroExp} attachments={attachments} setActiveCat={setActiveCat} setSourceVisible={setSourceVisible} setReviewVisible={setReviewVisible} />
+        <Carpeta titulo="FOTOS TERCERO" 
+lista={CATS.tercero} exp={terceroExp} setExp={setTerceroExp} attachments={attachments} setActiveCat={setActiveCat} setSourceVisible={setSourceVisible} setReviewVisible={setReviewVisible} />
         <TouchableOpacity style={styles.btnE} onPress={enviar} disabled={loading}>{loading ? <ActivityIndicator color="#003366" /> : <Text style={styles.btnET}>📩 ENVIAR REPORTE FINAL</Text>}</TouchableOpacity>
       </ScrollView>
 
@@ -176,8 +177,7 @@ export default function App() {
           <View style={styles.preB}>
             <TouchableOpacity style={styles.pBtn} onPress={() => setTempRot((tempRot + 90) % 360)}><Text style={styles.pBtnT}>ROTAR</Text></TouchableOpacity>
             <TouchableOpacity style={[styles.pBtn, {backgroundColor: '#2d6a2d'}]} onPress={async () => { const r = await procesarYRespaldar(tempUri, activeCat); setAttachments([...attachments, {id: Date.now(), uri: r, label: activeCat, rotation: tempRot, type: 'image'}]); manejarArchivo('camara'); }}><Text style={styles.pBtnT}>OTRA</Text></TouchableOpacity>
-            <TouchableOpacity style={[styles.pBtn,
-    {backgroundColor: '#003366'}]} onPress={async () => { const r = await procesarYRespaldar(tempUri, activeCat); setAttachments([...attachments, {id: Date.now(), uri: r, label: activeCat, rotation: tempRot, type: 'image'}]); setPreVisible(false); }}><Text style={styles.pBtnT}>LISTO</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.pBtn, {backgroundColor: '#003366'}]} onPress={async () => { const r = await procesarYRespaldar(tempUri, activeCat); setAttachments([...attachments, {id: Date.now(), uri: r, label: activeCat, rotation: tempRot, type: 'image'}]); setPreVisible(false); }}><Text style={styles.pBtnT}>LISTO</Text></TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -247,4 +247,4 @@ const styles = StyleSheet.create({
   centrado: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   bloqueoCont: { flex: 1, backgroundColor: '#003366', justifyContent: 'center', alignItems: 'center' },
   btnReintentar: { marginTop: 20, padding: 10, backgroundColor: '#002244', borderRadius: 5 }
-});                                                                          
+});
