@@ -3,6 +3,7 @@
     "name": "Crashito",
     "slug": "crashito",
     "version": "1.0.0",
+    "icon": "./icon.png",
     "android": {
       "package": "com.ereza018.appcrashnueva",
       "permissions": [
