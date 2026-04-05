@@ -282,7 +282,4 @@ const styles = StyleSheet.create({
   revCl: { backgroundColor: '#003366', padding: 20, borderRadius: 10, alignItems: 'center', marginTop: 10 },
   mF: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 25 },
   mC: { backgroundColor: 'white', borderRadius: 20, padding: 20, maxHeight: '80%' },
-  mT: { fontSize: 16, fontWeight: 'bold', marginBottom: 15, textAlign: 'center', color: '#003366' },
-  sB: { padding: 18, borderBottomWidth: 1, borderBottomColor: '#eee', alignItems: 'center' },
-  itL: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  btnC: { backgroundColor: '#003366', padding: 15, borderRa
+  mT: { fontSize: 16, fontWeight: 'bold', m
