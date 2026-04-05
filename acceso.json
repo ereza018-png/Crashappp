@@ -1,4 +1,15 @@
 {
-  "usuarios_autorizados": [],
+  "usuarios_autorizados": [
+    {
+      "id": "1799545",
+      "nombre": "EDGAR ALBERTO REZA MALDONADO",
+      "correo": "ereza018@gmail.com"
+    },
+    {
+      "id": "1799546",
+      "nombre": "DIEGO REZA GUEVARA",
+      "correo": "crashasesoressc@gmail.com"
+    }
+  ],
   "mensaje_bloqueo": "ACCESO DENEGADO.\n\nEste usuario ha sido dado de baja del sistema Crash Asesores."
 }
