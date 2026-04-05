@@ -19,7 +19,6 @@ export default function App() {
   const [datos, setDatos] = useState(INICIAL);
   const [attachments, setAttachments] = useState([]);
   const [loading, setLoading] = useState(false);
-  
   const [modalVisible, setModalVisible] = useState(false);
   const [modalData, setModalData] = useState({ title: '', options: [], field: '' });
   const [sourceVisible, setSourceVisible] = useState(false);
@@ -80,11 +79,8 @@ export default function App() {
     try {
       let loc = await Location.getCurrentPositionAsync({});
       const maps = `https://www.google.com/maps?q=${loc.coords.latitude},${loc.coords.longitude}`;
-      
-      // ASUNTO SOLICITADO
       const asunto = `${datos.aseguradora} REPORTE ${datos.reporte} SINIESTRO ${datos.siniestro} ${datos.atencion.join(' ')}`;
       
-      // CUERPO DEL CORREO CON TODOS LOS DATOS
       const cuerpo = `
 REPORTE DE AJUSTE - CRASH ASESORES
 ----------------------------------
@@ -118,50 +114,6 @@ TOTAL DE ARCHIVOS ADJUNTOS: ${attachments.length}
     ]);
   };
 
-  const Fila = ({ label, field, val, isInput }) => (
-    <View style={styles.fila}>
-      <Text style={styles.labelF}>{label}:</Text>
-      {isInput ? (
-        <TextInput 
-          style={styles.inputF} 
-          value={datos[field]} 
-          keyboardType="numeric" 
-          placeholder="0000"
-          onChangeText={(t) => setDatos({...datos, [field]: t})} 
-          returnKeyType="next"
-          onSubmitEditing={() => field === 'reporte' ? refSiniestro.current.focus() : null}
-          ref={field === 'siniestro' ? refSiniestro : null}
-          blurOnSubmit={field === 'siniestro'}
-        />
-      ) : (
-        <TouchableOpacity onPress={() => { setModalData({ title: label, options: LISTAS[field], field }); setModalVisible(true); }}>
-          <Text style={styles.valF}>{val}</Text>
-        </TouchableOpacity>
-      )}
-    </View>
-  );
-
-  const Carpeta = ({ titulo, lista, exp, setExp }) => (
-    <View style={{marginTop: 10}}>
-      <TouchableOpacity style={titulo.includes("ASEGURADO") ? styles.barV : styles.barA} onPress={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setExp(!exp); }}>
-        <Text style={styles.barT}>{titulo}</Text><Text style={styles.barT}>{exp ? '▲' : '▼'}</Text>
-      </TouchableOpacity>
-      {exp && lista.map((it, i) => {
-        const c = attachments.filter(a => a.label === it).length;
-        return (
-          <View key={i} style={styles.itF}>
-            <Text style={styles.itFT}>{it}</Text>
-            <View style={{flexDirection: 'row', alignItems: 'center'}}>
-              <TouchableOpacity onPress={() => setReviewVisible(true)}><Text style={{fontSize: 20, marginRight: 10}}>👁️</Text></TouchableOpacity>
-              {c > 0 && <View style={styles.badge}><Text style={styles.badgeT}>{c}</Text></View>}
-              <TouchableOpacity onPress={() => { setActiveCat(it); setSourceVisible(true); }}><Text style={{fontSize: 24, marginLeft: 10}}>📷</Text></TouchableOpacity>
-            </View>
-          </View>
-        )
-      })}
-    </View>
-  );
-
   return (
     <View style={styles.main}>
       <StatusBar barStyle="light-content" />
@@ -173,24 +125,50 @@ TOTAL DE ARCHIVOS ADJUNTOS: ${attachments.length}
       
       <ScrollView contentContainerStyle={{padding: 15}}>
         <View style={styles.card}>
-          <Fila label="ASEGURADORA" field="aseguradora" val={datos.aseguradora} />
-          <Fila label="REPORTE" field="reporte" val={datos.reporte} isInput />
-          <Fila label="SINIESTRO" field="siniestro" val={datos.siniestro} isInput />
-          <Fila label="ATENCION" field="atencion" val={datos.atencion.length + " Selecc."} />
-          <Fila label="ACUERDOS" field="acuerdos" val={datos.acuerdos} />
-          <Fila label="RESPONSABILIDAD" field="responsabilidad" val={datos.responsabilidad} />
-          <Fila label="CIRCUNSTANCIAS" field="circunstancias" val={datos.circunstancias} />
-          <Fila label="IMPROCEDENTES" field="improcedentes" val={datos.improcedentes} />
+          <TouchableOpacity style={styles.fila} onPress={() => { setModalData({ title: 'ASEGURADORA', options: LISTAS.aseguradora, field: 'aseguradora' }); setModalVisible(true); }}>
+            <Text style={styles.labelF}>ASEGURADORA:</Text><Text style={styles.valF}>{datos.aseguradora}</Text>
+          </TouchableOpacity>
+
+          <View style={styles.fila}>
+            <Text style={styles.labelF}>REPORTE:</Text>
+            <TextInput style={styles.inputF} value={datos.reporte} keyboardType="numeric" placeholder="0000" onChangeText={(t) => setDatos({...datos, reporte: t})} returnKeyType="next" onSubmitEditing={() => refSiniestro.current.focus()} />
+          </View>
+
+          <View style={styles.fila}>
+            <Text style={styles.labelF}>SINIESTRO:</Text>
+            <TextInput style={styles.inputF} ref={refSiniestro} value={datos.siniestro} keyboardType="numeric" placeholder="0000" onChangeText={(t) => setDatos({...datos, siniestro: t})} />
+          </View>
+
+          <TouchableOpacity style={styles.fila} onPress={() => { setModalData({ title: 'ATENCION', options: LISTAS.atencion, field: 'atencion' }); setModalVisible(true); }}>
+            <Text style={styles.labelF}>ATENCION:</Text><Text style={styles.valF}>{datos.atencion.length} Selecc.</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.fila} onPress={() => { setModalData({ title: 'ACUERDOS', options: LISTAS.acuerdos, field: 'acuerdos' }); setModalVisible(true); }}>
+            <Text style={styles.labelF}>ACUERDOS:</Text><Text style={styles.valF}>{datos.acuerdos}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.fila} onPress={() => { setModalData({ title: 'RESPONSABILIDAD', options: LISTAS.responsabilidad, field: 'responsabilidad' }); setModalVisible(true); }}>
+            <Text style={styles.labelF}>RESPONSABILIDAD:</Text><Text style={styles.valF}>{datos.responsabilidad}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.fila} onPress={() => { setModalData({ title: 'CIRCUNSTANCIAS', options: LISTAS.circunstancias, field: 'circunstancias' }); setModalVisible(true); }}>
+            <Text style={styles.labelF}>CIRCUNSTANCIAS:</Text><Text style={styles.valF}>{datos.circunstancias}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.fila} onPress={() => { setModalData({ title: 'IMPROCEDENTES', options: LISTAS.improcedentes, field: 'improcedentes' }); setModalVisible(true); }}>
+            <Text style={styles.labelF}>IMPROCEDENTES:</Text><Text style={styles.valF}>{datos.improcedentes}</Text>
+          </TouchableOpacity>
         </View>
 
-        <Carpeta titulo="FOTOS ASEGURADO" lista={CATS.asegurado} exp={aseguradoExp} setExp={setAseguradoExp} />
-        <Carpeta titulo="FOTOS TERCERO" lista={CATS.tercero} exp={terceroExp} setExp={setTerceroExp} />
+        <Carpeta titulo="FOTOS ASEGURADO" lista={CATS.asegurado} exp={aseguradoExp} setExp={setAseguradoExp} attachments={attachments} setActiveCat={setActiveCat} setSourceVisible={setSourceVisible} setReviewVisible={setReviewVisible} />
+        <Carpeta titulo="FOTOS TERCERO" lista={CATS.tercero} exp={terceroExp} setExp={setTerceroExp} attachments={attachments} setActiveCat={setActiveCat} setSourceVisible={setSourceVisible} setReviewVisible={setReviewVisible} />
 
         <TouchableOpacity style={styles.btnE} onPress={enviar} disabled={loading}>
           {loading ? <ActivityIndicator color="#003366" /> : <Text style={styles.btnET}>📩 ENVIAR REPORTE FINAL</Text>}
         </TouchableOpacity>
       </ScrollView>
 
+      {/* MODAL CÁMARA PREVIEW */}
       <Modal visible={preVisible} animationType="fade">
         <View style={styles.preF}>
           <Image source={{uri: tempUri}} style={[styles.preI, {transform: [{rotate: `${tempRot}deg`}]}]} />
@@ -202,6 +180,7 @@ TOTAL DE ARCHIVOS ADJUNTOS: ${attachments.length}
         </View>
       </Modal>
 
+      {/* MODAL REVISIÓN */}
       <Modal visible={reviewVisible} animationType="slide">
         <View style={styles.revC}>
           <Text style={styles.revTi}>VISUALIZAR / ELIMINAR / ROTAR</Text>
@@ -220,6 +199,7 @@ TOTAL DE ARCHIVOS ADJUNTOS: ${attachments.length}
         </View>
       </Modal>
 
+      {/* OTROS MODALES */}
       <Modal visible={sourceVisible} transparent={true}><View style={styles.mF}><View style={styles.mC}>
           <Text style={styles.mT}>Origen: {activeCat}</Text>
           <TouchableOpacity style={styles.sB} onPress={() => manejarArchivo('camara')}><Text>📷 Cámara</Text></TouchableOpacity>
@@ -242,6 +222,29 @@ TOTAL DE ARCHIVOS ADJUNTOS: ${attachments.length}
           )} />
           <TouchableOpacity style={styles.btnC} onPress={() => setModalVisible(false)}><Text style={{color: 'white'}}>CERRAR</Text></TouchableOpacity>
       </View></View></Modal>
+    </View>
+  );
+}
+
+function Carpeta({ titulo, lista, exp, setExp, attachments, setActiveCat, setSourceVisible, setReviewVisible }) {
+  return (
+    <View style={{marginTop: 10}}>
+      <TouchableOpacity style={titulo.includes("ASEGURADO") ? styles.barV : styles.barA} onPress={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setExp(!exp); }}>
+        <Text style={styles.barT}>{titulo}</Text><Text style={styles.barT}>{exp ? '▲' : '▼'}</Text>
+      </TouchableOpacity>
+      {exp && lista.map((it, i) => {
+        const c = attachments.filter(a => a.label === it).length;
+        return (
+          <View key={i} style={styles.itF}>
+            <Text style={styles.itFT}>{it}</Text>
+            <View style={{flexDirection: 'row', alignItems: 'center'}}>
+              <TouchableOpacity onPress={() => setReviewVisible(true)}><Text style={{fontSize: 20, marginRight: 10}}>👁️</Text></TouchableOpacity>
+              {c > 0 && <View style={styles.badge}><Text style={styles.badgeT}>{c}</Text></View>}
+              <TouchableOpacity onPress={() => { setActiveCat(it); setSourceVisible(true); }}><Text style={{fontSize: 24, marginLeft: 10}}>📷</Text></TouchableOpacity>
+            </View>
+          </View>
+        )
+      })}
     </View>
   );
 }
@@ -282,5 +285,4 @@ const styles = StyleSheet.create({
   mT: { fontSize: 16, fontWeight: 'bold', marginBottom: 15, textAlign: 'center', color: '#003366' },
   sB: { padding: 18, borderBottomWidth: 1, borderBottomColor: '#eee', alignItems: 'center' },
   itL: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  btnC: { backgroundColor: '#003366', padding: 15, borderRadius: 10, marginTop: 10, alignItems: 'center' }
-});
+  btnC: { backgroundColor: '#003366', padding: 15, borderRa
