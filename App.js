@@ -160,7 +160,8 @@ TOTAL DE ARCHIVOS ADJUNTOS: ${attachments.length}
           </TouchableOpacity>
         </View>
 
-        <Carpeta titulo="FOTOS ASEGURADO" lista={CATS.asegurado} exp={aseguradoExp} setExp={setAseguradoExp} attachments={attachments} setActiveCat={setActiveCat} setSourceVisible={setSourceVisible} setReviewVisible={setReviewVisible} />
+        <Carpeta titulo="FOTOS ASEGURADO" 
+lista={CATS.asegurado} exp={aseguradoExp} setExp={setAseguradoExp} attachments={attachments} setActiveCat={setActiveCat} setSourceVisible={setSourceVisible} setReviewVisible={setReviewVisible} />
         <Carpeta titulo="FOTOS TERCERO" lista={CATS.tercero} exp={terceroExp} setExp={setTerceroExp} attachments={attachments} setActiveCat={setActiveCat} setSourceVisible={setSourceVisible} setReviewVisible={setReviewVisible} />
 
         <TouchableOpacity style={styles.btnE} onPress={enviar} disabled={loading}>
@@ -281,4 +282,9 @@ const styles = StyleSheet.create({
   revA: { flexDirection: 'row', justifyContent: 'space-around', width: '100%', marginTop: 5 },
   revCl: { backgroundColor: '#003366', padding: 20, borderRadius: 10, alignItems: 'center', marginTop: 10 },
   mF: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 25 },
-  mC: { backgroundColor: 'whit       
+  mC: { backgroundColor: 'white', borderRadius: 20, padding: 20, maxHeight: '80%' },
+  mT: { fontSize: 16, fontWeight: 'bold', marginBottom: 15, textAlign: 'center', color: '#003366' },
+  sB: { padding: 18, borderBottomWidth: 1, borderBottomColor: '#eee', alignItems: 'center' },
+  itL: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
+  btnC: { backgroundColor: '#003366', padding: 15, borderRadius: 10, marginTop: 10, alignItems: 'center' }
+});                                                    
