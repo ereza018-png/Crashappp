@@ -19,18 +19,26 @@ export default function App() {
   const [datos, setDatos] = useState(INICIAL);
   const [attachments, setAttachments] = useState([]);
   const [loading, setLoading] = useState(false);
+  
+  // Modales
   const [modalVisible, setModalVisible] = useState(false);
   const [modalData, setModalData] = useState({ title: '', options: [], field: '' });
   const [sourceVisible, setSourceVisible] = useState(false);
   const [reviewVisible, setReviewVisible] = useState(false);
-  const [aseguradoExp, setAseguradoExp] = useState(true);
-  const [terceroExp, setTerceroExp] = useState(false);
   
-  // Multitoma
+  // Cámara y Previsualización
   const [activeCat, setActiveCat] = useState('');
   const [preVisible, setPreVisible] = useState(false);
   const [tempUri, setTempUri] = useState(null);
   const [tempRot, setTempRot] = useState(0);
+
+  // Previsualización de archivos (Drive)
+  const [filePreVisible, setFilePreVisible] = useState(false);
+  const [filePreData, setFilePreData] = useState(null);
+
+  // Acordeones
+  const [aseguradoExp, setAseguradoExp] = useState(true);
+  const [terceroExp, setTerceroExp] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -53,23 +61,29 @@ export default function App() {
     tercero: ["DOCUMENTOS", "VEHÍCULO TERCERO"]
   };
 
-  const manejarArchivo = async (modo) => {
+  const capturarArchivo = async (modo) => {
     let res;
     if (modo === 'camara') {
       res = await ImagePicker.launchCameraAsync({ quality: 0.5 });
       if (!res.canceled) { setTempUri(res.assets[0].uri); setTempRot(0); setPreVisible(true); }
     } else if (modo === 'galeria') {
       res = await ImagePicker.launchImageLibraryAsync({ quality: 0.5 });
-      if (!res.canceled) adjuntar(res.assets[0].uri, 'image');
+      if (!res.canceled) mostrarArchivoPre(res.assets[0].uri, 'image');
     } else {
       res = await DocumentPicker.getDocumentAsync({ type: "*/*" });
-      if (!res.canceled) adjuntar(res.assets[0].uri, res.assets[0].mimeType.includes('pdf') ? 'pdf' : 'image');
+      if (!res.canceled) mostrarArchivoPre(res.assets[0].uri, res.assets[0].mimeType.includes('pdf') ? 'pdf' : 'image', res.assets[0].name);
     }
     setSourceVisible(false);
   };
 
-  const adjuntar = (uri, type, rot = 0) => {
-    setAttachments([...attachments, { id: Date.now(), uri, type, label: activeCat, rotation: rot }]);
+  const mostrarArchivoPre = (uri, type, name = '') => {
+    setFilePreData({ uri, type, name, id: Date.now() });
+    setFilePreVisible(true);
+  };
+
+  const adjuntarArchivo = () => {
+    setAttachments([...attachments, { ...filePreData, label: activeCat, rotation: 0 }]);
+    setFilePreVisible(false);
   };
 
   const enviar = async () => {
@@ -77,15 +91,22 @@ export default function App() {
     try {
       let loc = await Location.getCurrentPositionAsync({});
       const maps = `https://www.google.com/maps?q=${loc.coords.latitude},${loc.coords.longitude}`;
+      // ASUNTO SOLICITADO
       const asunto = `${datos.aseguradora} REPORTE ${datos.reporte} SINIESTRO ${datos.siniestro} ${datos.atencion.join(' ')}`;
       await MailComposer.composeAsync({
         recipients: ['tu-correo@ejemplo.com'],
         subject: asunto,
-        body: `UBICACIÓN: ${maps}\nTOTAL ARCHIVOS: ${attachments.length}`,
+        body: `REPORTE CRASH ASESORES\n\nUBICACIÓN: ${maps}\nCANTIDAD DE ARCHIVOS: ${attachments.length}`,
         attachments: attachments.map(a => a.uri)
       });
-    } catch (e) { Alert.alert("Error", "No se pudo enviar"); }
+    } catch (e) { Alert.alert("Error", "Fallo al enviar"); }
     setLoading(false);
+  };
+
+  const logout = () => {
+    Alert.alert("Cerrar Sesión", "¿Borrar datos y salir?", [
+      { text: "No" }, { text: "Sí", onPress: () => { setAttachments([]); setDatos(INICIAL); BackHandler.exitApp(); } }
+    ]);
   };
 
   const Fila = ({ label, field, val, isInput }) => (
@@ -129,7 +150,7 @@ export default function App() {
     <View style={styles.main}>
       <StatusBar barStyle="light-content" />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => BackHandler.exitApp()}><Text style={{color: 'red', fontWeight: 'bold'}}>SALIR</Text></TouchableOpacity>
+        <TouchableOpacity onPress={logout}><Text style={{color: 'red', fontWeight: 'bold', fontSize: 12}}>SALIR</Text></TouchableOpacity>
         <Text style={styles.headT}>CRASH ASESORES</Text>
         <View style={{width: 40}} />
       </View>
@@ -154,50 +175,62 @@ export default function App() {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* --- MODAL CÁMARA (ROTAR Y MULTITOMA) --- */}
+      {/* MODAL CÁMARA PREVIEW */}
       <Modal visible={preVisible} animationType="fade">
         <View style={styles.preF}>
+          <Text style={styles.preTit}>CÁMARA</Text>
           <Image source={{uri: tempUri}} style={[styles.preI, {transform: [{rotate: `${tempRot}deg`}]}]} />
           <View style={styles.preB}>
             <TouchableOpacity style={styles.pBtn} onPress={() => setTempRot((tempRot + 90) % 360)}><Text style={styles.pBtnT}>ROTAR 🔄</Text></TouchableOpacity>
-            <TouchableOpacity style={[styles.pBtn, {backgroundColor: '#2d6a2d'}]} onPress={() => { adjuntar(tempUri, 'image', tempRot); manejarArchivo('camara'); }}><Text style={styles.pBtnT}>OTRA</Text></TouchableOpacity>
-            <TouchableOpacity style={[styles.pBtn, {backgroundColor: '#003366'}]} onPress={() => { adjuntar(tempUri, 'image', tempRot); setPreVisible(false); }}><Text style={styles.pBtnT}>LISTO</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.pBtn, {backgroundColor: '#2d6a2d'}]} onPress={() => { setAttachments([...attachments, {id: Date.now(), uri: tempUri, label: activeCat, rotation: tempRot, type: 'image'}]); capturarArchivo('camara'); }}><Text style={styles.pBtnT}>OTRA</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.pBtn, {backgroundColor: '#003366'}]} onPress={() => { setAttachments([...attachments, {id: Date.now(), uri: tempUri, label: activeCat, rotation: tempRot, type: 'image'}]); setPreVisible(false); }}><Text style={styles.pBtnT}>LISTO</Text></TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* --- MODAL REVISIÓN (VER Y ELIMINAR) --- */}
+      {/* MODAL VISUALIZAR DRIVE/ARCHIVO */}
+      <Modal visible={filePreVisible} transparent={true} animationType="fade">
+        <View style={styles.mF}>
+          <View style={styles.filePreCont}>
+            <Text style={styles.mT}>Vista Previa de Archivo</Text>
+            {filePreData?.type === 'image' ? <Image source={{uri: filePreData.uri}} style={styles.filePreImg} /> : <View style={styles.filePreImg}><Text style={{fontSize:50}}>📄</Text><Text>{filePreData?.name}</Text></View>}
+            <View style={{flexDirection:'row', justifyContent:'space-around', width:'100%'}}>
+               <TouchableOpacity style={[styles.btnC, {width:'45%', backgroundColor:'#2d6a2d'}]} onPress={adjuntarArchivo}><Text style={{color:'white'}}>Adjuntar</Text></TouchableOpacity>
+               <TouchableOpacity style={[styles.btnC, {width:'45%', backgroundColor:'red'}]} onPress={() => setFilePreVisible(false)}><Text style={{color:'white'}}>Cancelar</Text></TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL REVISIÓN */}
       <Modal visible={reviewVisible} animationType="slide">
         <View style={styles.revC}>
-          <Text style={styles.revTi}>VISUALIZAR / ELIMINAR</Text>
+          <Text style={styles.revTi}>REVISAR / ELIMINAR / ROTAR</Text>
           <FlatList data={attachments} numColumns={2} renderItem={({item}) => (
             <View style={styles.revB}>
               {item.type === 'image' ? <Image source={{uri: item.uri}} style={[styles.revI, {transform: [{rotate: `${item.rotation}deg`}]}]} /> : <View style={[styles.revI, styles.pdfB]}><Text>📄 PDF</Text></View>}
               <Text numberOfLines={1} style={styles.revL}>{item.label}</Text>
               <View style={styles.revA}>
-                <TouchableOpacity onPress={async () => await Sharing.shareAsync(item.uri)}><Text style={{fontSize: 20}}>👁️</Text></TouchableOpacity>
-                <TouchableOpacity onPress={() => setAttachments(attachments.filter(a => a.id !== item.id))}><Text style={{fontSize: 20}}>🗑️</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => setAttachments(attachments.map(a => a.id === item.id ? {...a, rotation: (a.rotation + 90) % 360} : a))}><Text>🔄</Text></TouchableOpacity>
+                <TouchableOpacity onPress={async () => await Sharing.shareAsync(item.uri)}><Text>👁️</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => setAttachments(attachments.filter(a => a.id !== item.id))}><Text>🗑️</Text></TouchableOpacity>
               </View>
             </View>
           )} />
-          <TouchableOpacity style={styles.revCl} onPress={() => setReviewVisible(false)}><Text style={{color: 'white', fontWeight: 'bold'}}>CERRAR GALERÍA</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.revCl} onPress={() => setReviewVisible(false)}><Text style={{color: 'white', fontWeight: 'bold'}}>GUARDAR Y CERRAR</Text></TouchableOpacity>
         </View>
       </Modal>
 
-      {/* --- MODAL SELECTOR --- */}
-      <Modal visible={sourceVisible} transparent={true}>
-        <View style={styles.mF}><View style={styles.mC}>
+      {/* OTROS MODALES (SELECTORES) */}
+      <Modal visible={sourceVisible} transparent={true}><View style={styles.mF}><View style={styles.mC}>
           <Text style={styles.mT}>Origen: {activeCat}</Text>
-          <TouchableOpacity style={styles.sB} onPress={() => manejarArchivo('camara')}><Text>📷 Cámara</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.sB} onPress={() => manejarArchivo('galeria')}><Text>🖼️ Galería</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.sB} onPress={() => manejarArchivo('drive')}><Text>📁 Drive / Archivos</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.sB} onPress={() => capturarArchivo('camara')}><Text>📷 Cámara</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.sB} onPress={() => capturarArchivo('galeria')}><Text>🖼️ Galería</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.sB} onPress={() => capturarArchivo('drive')}><Text>📁 Drive / Archivos</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.sB, {backgroundColor: '#eee'}]} onPress={() => setSourceVisible(false)}><Text style={{color: 'red'}}>Cancelar</Text></TouchableOpacity>
-        </View></View>
-      </Modal>
+      </View></View></Modal>
 
-      {/* --- MODAL LISTAS --- */}
-      <Modal visible={modalVisible} transparent={true} animationType="slide">
-        <View style={styles.mF}><View style={styles.mC}>
+      <Modal visible={modalVisible} transparent={true} animationType="slide"><View style={styles.mF}><View style={styles.mC}>
           <Text style={styles.mT}>{modalData.title}</Text>
           <FlatList data={modalData.options} renderItem={({item}) => (
             <TouchableOpacity style={styles.itL} onPress={() => {
@@ -210,8 +243,7 @@ export default function App() {
             </TouchableOpacity>
           )} />
           <TouchableOpacity style={styles.btnC} onPress={() => setModalVisible(false)}><Text style={{color: 'white'}}>CERRAR</Text></TouchableOpacity>
-        </View></View>
-      </Modal>
+      </View></View></Modal>
     </View>
   );
 }
@@ -235,12 +267,13 @@ const styles = StyleSheet.create({
   btnE: { backgroundColor: '#ffcc00', padding: 18, borderRadius: 12, marginTop: 20, alignItems: 'center' },
   btnET: { color: '#003366', fontWeight: 'bold', fontSize: 16 },
   preF: { flex: 1, backgroundColor: 'black', justifyContent: 'center' },
+  preTit: { color:'white', textAlign:'center', padding:10, fontWeight:'bold' },
   preI: { width: '100%', height: '70%', resizeMode: 'contain' },
   preB: { flexDirection: 'row', justifyContent: 'space-around', padding: 20 },
   pBtn: { padding: 15, backgroundColor: '#4a5568', borderRadius: 10, width: width / 3.5, alignItems: 'center' },
-  pBtnT: { color: 'white', fontWeight: 'bold', fontSize: 12 },
+  pBtnT: { color: 'white', fontWeight: 'bold', fontSize: 11 },
   revC: { flex: 1, backgroundColor: 'white', paddingTop: 50, padding: 10 },
-  revTi: { fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 20, color: '#003366' },
+  revTi: { fontSize: 16, fontWeight: 'bold', textAlign: 'center', marginBottom: 20, color: '#003366' },
   revB: { width: '48%', margin: '1%', padding: 5, borderRadius: 10, borderWidth: 1, borderColor: '#ddd', alignItems: 'center' },
   revI: { width: '100%', height: 110, borderRadius: 8 },
   pdfB: { backgroundColor: '#eee', justifyContent: 'center', alignItems: 'center' },
@@ -249,6 +282,8 @@ const styles = StyleSheet.create({
   revCl: { backgroundColor: '#003366', padding: 20, borderRadius: 10, alignItems: 'center', marginTop: 10 },
   mF: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 25 },
   mC: { backgroundColor: 'white', borderRadius: 20, padding: 20, maxHeight: '80%' },
+  filePreCont: { backgroundColor:'white', borderRadius:20, padding:15, width:'95%', alignItems:'center' },
+  filePreImg: { width:'100%', height: 300, borderRadius:10, marginBottom:15, resizeMode:'contain', backgroundColor:'#f9f9f9', justifyContent:'center', alignItems:'center' },
   mT: { fontSize: 16, fontWeight: 'bold', marginBottom: 15, textAlign: 'center', color: '#003366' },
   sB: { padding: 18, borderBottomWidth: 1, borderBottomColor: '#eee', alignItems: 'center' },
   itL: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
