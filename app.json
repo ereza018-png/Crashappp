@@ -23,12 +23,12 @@
     },
     "extra": {
       "eas": {
-        "projectId": "TU_PROJECT_ID_AQUÍ"
+        "projectId": "3687876b-8496-4caf-8083-f29cfc9d7262"
       }
     },
     "plugins": [
-      ["expo-image-picker", { "photosPermission": "Permiso para fotos" }],
-      ["expo-location", { "locationAlwaysPermission": "Permiso para GPS" }]
+      ["expo-image-picker", { "photosPermission": "Acceso a fotos necesario" }],
+      ["expo-location", { "locationAlwaysPermission": "Ubicación necesaria" }]
     ]
   }
 }
