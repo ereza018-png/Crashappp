@@ -1,9 +1,21 @@
 {
   "build": {
-    "Avance": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
       "android": {
         "buildType": "apk"
       }
+    },
+    "production": {
+      "android": {
+        "buildType": "app-bundle"
+      }
     }
+  },
+  "submit": {
+    "production": {}
   }
 }
