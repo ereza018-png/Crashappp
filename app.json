@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "Crash Asesores",
+    "slug": "crashito",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#003366"
+    },
+    "android": {
+      "package": "com.ereza018.appcrashnueva",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./icon.png",
+        "backgroundColor": "#003366"
+      },
+      "permissions": [
+        "CAMERA",
+        "WRITE_EXTERNAL_STORAGE",
+        "ACCESS_FINE_LOCATION"
+      ]
+    },
+    "extra": {
+      "eas": {
+        "projectId": "3687876b-8496-4caf-8083-f29cfc9d7262"
+      }
+    },
+    "plugins": [
+      "expo-splash-screen",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Permite usar la cámara para el reporte."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysPermission": "Necesitamos tu ubicación para el siniestro."
+        }
+      ]
+    ]
+  }
+}
