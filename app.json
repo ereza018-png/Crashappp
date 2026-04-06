@@ -20,7 +20,6 @@
       },
       "permissions": [
         "CAMERA",
-        "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
         "ACCESS_FINE_LOCATION"
       ]
@@ -34,11 +33,11 @@
       "expo-splash-screen",
       [
         "expo-image-picker",
-        { "photosPermission": "La app necesita usar la cámara para el reporte." }
+        { "photosPermission": "Permite usar la cámara." }
       ],
       [
         "expo-location",
-        { "locationAlwaysPermission": "Necesitamos tu ubicación para el siniestro." }
+        { "locationAlwaysPermission": "Permite usar la ubicación." }
       ]
     ]
   }
