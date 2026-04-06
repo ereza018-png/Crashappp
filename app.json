@@ -23,10 +23,9 @@
         "projectId": "3687876b-8496-4caf-8083-f29cfc9d7262"
       }
     },
-    "owner": "crashitc",
     "plugins": [
-      ["expo-image-picker", { "photosPermission": "Permiso para cámara." }],
-      ["expo-location", { "locationAlwaysPermission": "Permiso para GPS." }]
+      ["expo-image-picker", { "photosPermission": "Acceso a cámara necesario." }],
+      ["expo-location", { "locationAlwaysPermission": "Acceso a GPS necesario." }]
     ]
   }
 }
