@@ -4,7 +4,7 @@
   "main": "node_modules/expo/AppEntry.js",
   "dependencies": {
     "expo": "~51.0.0",
-    "expo-splash-screen": "~0.27.20",
+    "expo-splash-screen": "~0.27.18",
     "expo-location": "~17.0.1",
     "expo-mail-composer": "~13.0.0",
     "expo-image-picker": "~15.0.5",
