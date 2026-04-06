@@ -13,10 +13,16 @@
     },
     "android": {
       "package": "com.ereza018.crashapp",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./icon.png",
         "backgroundColor": "#003366"
-      }
+      },
+      "permissions": [
+        "CAMERA",
+        "WRITE_EXTERNAL_STORAGE",
+        "ACCESS_FINE_LOCATION"
+      ]
     },
     "extra": {
       "eas": {
@@ -24,8 +30,14 @@
       }
     },
     "plugins": [
-      ["expo-image-picker", { "photosPermission": "Acceso a la cámara necesario para el reporte." }],
-      ["expo-location", { "locationAlwaysPermission": "Acceso a la ubicación necesario." }]
+      [
+        "expo-image-picker",
+        { "photosPermission": "La app necesita usar la cámara para el reporte." }
+      ],
+      [
+        "expo-location",
+        { "locationAlwaysPermission": "Necesitamos tu ubicación para el siniestro." }
+      ]
     ]
   }
 }
