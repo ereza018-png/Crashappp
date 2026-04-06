@@ -1,30 +1,48 @@
 {
   "expo": {
-    "name": "Crashito",
-    "slug": "crashito",
+    "name": "Crash Asesores",
+    "slug": "crash-asesores-app",
     "version": "1.0.0",
-    "icon": "./icon.png",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#003366"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ereza018.crashapp"
+    },
     "android": {
-      "package": "com.ereza018.appcrashnueva",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#003366"
+      },
+      "package": "com.ereza018.crashapp",
       "permissions": [
         "CAMERA",
+        "RECORD_AUDIO",
+        "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
-        "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE"
       ]
     },
-    "splash": {
-      "backgroundColor": "#003366"
-    },
     "plugins": [
-      "expo-location",
-      "expo-image-picker",
-      "expo-document-picker"
-    ],
-    "extra": {
-      "eas": {
-        "projectId": "3687876b-8496-4caf-8083-f29cfc9d7262"
-      }
-    }
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "La aplicación necesita acceso a tus fotos para adjuntarlas al reporte.",
+          "cameraPermission": "La aplicación necesita acceso a la cámara para documentar el siniestro."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysPermission": "Necesitamos tu ubicación para validar el lugar del siniestro."
+        }
+      ]
+    ]
   }
 }
