@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Crash Asesores",
-    "slug": "crash-asesores-app",
+    "slug": "do",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./icon.png",
@@ -11,6 +11,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#003366"
     },
+    "ios": {
+      "supportsTablet": true
+    },
     "android": {
       "package": "com.ereza018.crashapp",
       "adaptiveIcon": {
@@ -18,9 +21,14 @@
         "backgroundColor": "#003366"
       }
     },
+    "extra": {
+      "eas": {
+        "projectId": "TU_PROJECT_ID_AQUÍ"
+      }
+    },
     "plugins": [
-      ["expo-image-picker", { "photosPermission": "Acceso a fotos necesario" }],
-      ["expo-location", { "locationAlwaysPermission": "Ubicación necesaria" }]
+      ["expo-image-picker", { "photosPermission": "Permiso para fotos" }],
+      ["expo-location", { "locationAlwaysPermission": "Permiso para GPS" }]
     ]
   }
 }
