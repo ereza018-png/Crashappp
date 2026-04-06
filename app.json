@@ -24,8 +24,8 @@
       }
     },
     "plugins": [
-      ["expo-image-picker", { "photosPermission": "Acceso a cámara necesario." }],
-      ["expo-location", { "locationAlwaysPermission": "Acceso a GPS necesario." }]
+      ["expo-image-picker", { "photosPermission": "Acceso a la cámara necesario para el reporte." }],
+      ["expo-location", { "locationAlwaysPermission": "Acceso a la ubicación necesario." }]
     ]
   }
 }
