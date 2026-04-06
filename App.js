@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, TextInput, Alert, ActivityIndicator, Modal, FlatList, BackHandler, Platform } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, TextInput, Alert, ActivityIndicator, Modal, FlatList, BackHandler } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import * as MailComposer from 'expo-mail-composer';
 import * as FileSystem from 'expo-file-system';
 
-// --- 📋 LISTADOS PARA LOS SELECTORES ---
-const ASEGURADORAS = ["GNP", "AXA", "QUALITAS", "CHUBB", "HDI", "GENERAL DE SEGUROS", "MAPFRE", "OTRA"];
+// --- 📋 LISTADOS ---
+const ASEGURADORAS = ["GNP", "AXA", "QUÁLITAS", "CHUBB", "HDI", "GENERAL DE SEGUROS", "MAPFRE", "OTRA"];
 const LISTA_ATENCION = ["PRESENCIAL", "TELEFÓNICA", "REMOTA"];
 const LISTA_ACUERDOS = ["CONVENIO", "PASE MÉDICO", "REPARACIÓN", "PAGO DAÑOS"];
 const LISTA_RESPONSABILIDAD = ["CLIENTE", "TERCERO", "50/50", "POR DETERMINAR"];
@@ -22,14 +22,7 @@ export default function App() {
   const [autorizado, setAutorizado] = useState(false);
   const [perfil, setPerfil] = useState({ id: "", nombre: "" });
   const [inputID, setInputID] = useState("");
-  
-  const [datos, setDatos] = useState({ 
-    aseguradora: 'Seleccionar', reporte: '', siniestro: '', 
-    atencion: 'Seleccionar', acuerdos: 'Seleccionar', 
-    responsabilidad: 'Seleccionar', circunstancias: 'Seleccionar', 
-    improcedentes: 'Seleccionar' 
-  });
-
+  const [datos, setDatos] = useState({ aseguradora: 'Seleccionar', reporte: '', siniestro: '', atencion: 'Seleccionar', acuerdos: 'Seleccionar', responsabilidad: 'Seleccionar', circunstancias: 'Seleccionar', improcedentes: 'Seleccionar' });
   const [attachments, setAttachments] = useState([]);
   const [modalList, setModalList] = useState({ visible: false, data: [], campo: '' });
 
@@ -51,7 +44,7 @@ export default function App() {
         const validado = config.usuarios_autorizados.find(u => u.id === p.id);
         if (validado) { setPerfil(validado); setAutorizado(true); }
       }
-    } catch (e) { console.log("Modo offline"); }
+    } catch (e) { console.log("Offline"); }
     setLoadingSeg(false);
   };
 
@@ -65,129 +58,78 @@ export default function App() {
       if (user) {
         await AsyncStorage.setItem('@perfil', JSON.stringify(user));
         setPerfil(user); setAutorizado(true);
-      } else { Alert.alert("Error", "ID no autorizado en el sistema."); }
-    } catch (e) { Alert.alert("Error", "Revisa tu conexión a internet."); }
+      } else { Alert.alert("Error", "ID no autorizado."); }
+    } catch (e) { Alert.alert("Error", "Sin conexión."); }
     setLoadingSeg(false);
-  };
-
-  const abrirSelector = (lista, campo) => { setModalList({ visible: true, data: lista, campo: campo }); };
-  const seleccionarOpcion = (item) => {
-    setDatos({ ...datos, [modalList.campo]: item });
-    setModalList({ visible: false, data: [], campo: '' });
   };
 
   const tomarFoto = async (categoria) => {
     try {
-      let result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.4, // Calidad baja para evitar que la app se cierre por memoria
-        allowsEditing: false,
-      });
-
+      let result = await ImagePicker.launchCameraAsync({ quality: 0.4 });
       if (!result.canceled) {
         const uri = result.assets[0].uri;
-        const nombreArchivo = `${datos.reporte || 'SN'}_${categoria}.jpg`.replace(/\s+/g, '_');
-        const destino = FileSystem.cacheDirectory + nombreArchivo;
+        const destino = FileSystem.cacheDirectory + `${categoria}.jpg`;
         await FileSystem.copyAsync({ from: uri, to: destino });
         setAttachments([...attachments, { uri: destino, label: categoria }]);
       }
-    } catch (e) { Alert.alert("Error", "Cámara interrumpida."); }
+    } catch (e) { Alert.alert("Error", "Cámara falló."); }
   };
 
   const enviarReporte = async () => {
-    if (datos.aseguradora === 'Seleccionar' || !datos.reporte) return Alert.alert("Faltan datos", "Indica Aseguradora y No. de Reporte.");
+    if (datos.aseguradora === 'Seleccionar' || !datos.reporte) return Alert.alert("Error", "Faltan datos.");
+    const loc = await Location.getCurrentPositionAsync({});
+    const maps = `https://www.google.com/maps?q=${loc.coords.latitude},${loc.coords.longitude}`;
     
-    try {
-      const loc = await Location.getCurrentPositionAsync({});
-      const mapsUrl = `https://www.google.com/maps?q=${loc.coords.latitude},${loc.coords.longitude}`;
-      
-      const cuerpo = `REPORTE CRASH ASESORES\n\n` +
-        `AJUSTADOR: ${perfil.nombre}\nASEGURADORA: ${datos.aseguradora}\n` +
-        `REPORTE: ${datos.reporte}\nSINIESTRO: ${datos.siniestro}\n` +
-        `ATENCIÓN: ${datos.atencion}\nACUERDOS: ${datos.acuerdos}\n` +
-        `RESPONSABILIDAD: ${datos.responsabilidad}\nCIRCUNSTANCIAS: ${datos.circunstancias}\n` +
-        `UBICACIÓN: ${mapsUrl}`;
-
-      await MailComposer.composeAsync({
-        recipients: ['tu-correo-de-ajustes@gmail.com'], // CAMBIA ESTO
-        subject: `REP: ${datos.reporte} - ${datos.aseguradora}`,
-        body: cuerpo,
-        attachments: attachments.map(a => a.uri)
-      });
-    } catch (e) { Alert.alert("Fallo", "No se pudo abrir el correo."); }
-  };
-
-  const salirLimpiar = async () => {
-    Alert.alert("Salir", "¿Cerrar sesión y salir?", [
-      { text: "No" },
-      { text: "Sí", onPress: async () => {
-          await AsyncStorage.clear();
-          setAutorizado(false);
-          BackHandler.exitApp();
-      }}
-    ]);
+    await MailComposer.composeAsync({
+      recipients: ['tu-correo@ejemplo.com'], // CAMBIA ESTO
+      subject: `REPORTE: ${datos.aseguradora} - ${datos.reporte}`,
+      body: `AJUSTADOR: ${perfil.nombre}\nASEGURADORA: ${datos.aseguradora}\nREPORTE: ${datos.reporte}\nUBICACIÓN: ${maps}`,
+      attachments: attachments.map(a => a.uri)
+    });
   };
 
   if (loadingSeg) return <View style={styles.centrado}><ActivityIndicator size="large" color="#003366" /></View>;
   if (!autorizado) return (
     <View style={styles.bloqueo}>
       <Text style={styles.loginTit}>CRASH ASESORES</Text>
-      <TextInput style={styles.inputLogin} placeholder="ID DE AJUSTADOR" value={inputID} onChangeText={setInputID} autoCapitalize="characters" />
-      <TouchableOpacity style={styles.btnLog} onPress={login}><Text style={{color:'#003366', fontWeight:'bold'}}>INGRESAR</Text></TouchableOpacity>
+      <TextInput style={styles.inputLogin} placeholder="ID AJUSTADOR" value={inputID} onChangeText={setInputID} autoCapitalize="characters" />
+      <TouchableOpacity style={styles.btnLog} onPress={login}><Text style={{fontWeight:'bold'}}>ENTRAR</Text></TouchableOpacity>
     </View>
   );
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.userT}>{perfil.nombre}</Text>
-        <TouchableOpacity onPress={salirLimpiar}><Text style={{color:'red', fontWeight:'bold'}}>SALIR</Text></TouchableOpacity>
-      </View>
-
+      <View style={styles.header}><Text style={styles.userT}>{perfil.nombre}</Text><TouchableOpacity onPress={async () => { await AsyncStorage.clear(); BackHandler.exitApp(); }}><Text style={{color:'red'}}>SALIR</Text></TouchableOpacity></View>
       <ScrollView contentContainerStyle={{padding: 20}}>
         <Text style={styles.label}>Aseguradora:</Text>
-        <TouchableOpacity style={styles.picker} onPress={() => abrirSelector(ASEGURADORAS, 'aseguradora')}><Text>{datos.aseguradora}</Text></TouchableOpacity>
-
+        <TouchableOpacity style={styles.picker} onPress={() => setModalList({visible:true, data:ASEGURADORAS, campo:'aseguradora'})}><Text>{datos.aseguradora}</Text></TouchableOpacity>
+        
         <Text style={styles.label}>No. Reporte:</Text>
-        <TextInput style={styles.input} keyboardType="numeric" value={datos.reporte} onChangeText={(t)=>setDatos({...datos, reporte: t})} />
-
+        <TextInput style={styles.input} keyboardType="numeric" value={datos.reporte} onChangeText={(t)=>setDatos({...datos, reporte:t})} />
+        
         <Text style={styles.label}>No. Siniestro:</Text>
-        <TextInput style={styles.input} keyboardType="numeric" value={datos.siniestro} onChangeText={(t)=>setDatos({...datos, siniestro: t})} />
+        <TextInput style={styles.input} keyboardType="numeric" value={datos.siniestro} onChangeText={(t)=>setDatos({...datos, siniestro:t})} />
 
         <Text style={styles.label}>Atención:</Text>
-        <TouchableOpacity style={styles.picker} onPress={() => abrirSelector(LISTA_ATENCION, 'atencion')}><Text>{datos.atencion}</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.picker} onPress={() => setModalList({visible:true, data:LISTA_ATENCION, campo:'atencion'})}><Text>{datos.atencion}</Text></TouchableOpacity>
 
-        <Text style={styles.label}>Acuerdos:</Text>
-        <TouchableOpacity style={styles.picker} onPress={() => abrirSelector(LISTA_ACUERDOS, 'acuerdos')}><Text>{datos.acuerdos}</Text></TouchableOpacity>
-
-        <Text style={styles.label}>Responsabilidad:</Text>
-        <TouchableOpacity style={styles.picker} onPress={() => abrirSelector(LISTA_RESPONSABILIDAD, 'responsabilidad')}><Text>{datos.responsabilidad}</Text></TouchableOpacity>
-
-        <Text style={styles.label}>Circunstancias:</Text>
-        <TouchableOpacity style={styles.picker} onPress={() => abrirSelector(LISTA_CIRCUNSTANCIAS, 'circunstancias')}><Text>{datos.circunstancias}</Text></TouchableOpacity>
-
-        <Text style={styles.label}>Improcedentes:</Text>
-        <TouchableOpacity style={styles.picker} onPress={() => abrirSelector(LISTA_IMPROCEDENTES, 'improcedentes')}><Text>{datos.improcedentes}</Text></TouchableOpacity>
-
-        <Text style={styles.titSeccion}>FOTOS DEL SINIESTRO</Text>
+        <Text style={styles.titSec}>FOTOGRAFÍAS</Text>
         <View style={styles.grid}>
           {ORDEN_FOTOS.map((cat, i) => (
-            <TouchableOpacity key={i} style={[styles.btnFoto, attachments.find(a => a.label === cat) && {backgroundColor:'#c3e6cb'}]} onPress={() => tomarFoto(cat)}>
-              <Text style={styles.txtFoto}>{cat}</Text>
-              {attachments.find(a => a.label === cat) && <Text>✅</Text>}
+            <TouchableOpacity key={i} style={[styles.btnFoto, attachments.find(a=>a.label===cat) && {backgroundColor:'#c3e6cb'}]} onPress={() => tomarFoto(cat)}>
+              <Text style={{fontSize:9, fontWeight:'bold'}}>{cat}</Text>
             </TouchableOpacity>
           ))}
         </View>
-
-        <TouchableOpacity style={styles.btnEnviar} onPress={enviarReporte}><Text style={styles.btnEnviarTxt}>ENVIAR REPORTE</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.btnEnviar} onPress={enviarReporte}><Text style={{color:'white', fontWeight:'bold'}}>ENVIAR TODO</Text></TouchableOpacity>
       </ScrollView>
 
       <Modal visible={modalList.visible} transparent animationType="fade">
-        <View style={styles.modalCont}><View style={styles.modalInterno}>
-            <FlatList data={modalList.data} keyExtractor={(item)=>item} renderItem={({item}) => (
-                <TouchableOpacity style={styles.itemLista} onPress={() => seleccionarOpcion(item)}><Text style={styles.itemTxt}>{item}</Text></TouchableOpacity>
-            )}/>
-            <TouchableOpacity onPress={() => setModalList({visible: false, data:[], campo:''})}><Text style={{color:'red', textAlign:'center', padding:10}}>CERRAR</Text></TouchableOpacity>
+        <View style={styles.modalC}><View style={styles.modalI}>
+          <FlatList data={modalList.data} renderItem={({item})=>(
+            <TouchableOpacity style={styles.item} onPress={()=>{setDatos({...datos, [modalList.campo]:item}); setModalList({visible:false, data:[], campo:''})}}><Text>{item}</Text></TouchableOpacity>
+          )} />
+          <TouchableOpacity onPress={()=>setModalList({visible:false, data:[], campo:''})}><Text style={{color:'red', textAlign:'center', marginTop:10}}>CERRAR</Text></TouchableOpacity>
         </View></View>
       </Modal>
     </View>
@@ -198,22 +140,19 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f4f7f6' },
   centrado: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   bloqueo: { flex: 1, backgroundColor: '#003366', justifyContent: 'center', alignItems: 'center' },
-  loginTit: { color: 'white', fontSize: 24, fontWeight: 'bold', marginBottom: 30 },
-  inputLogin: { backgroundColor: 'white', width: '80%', padding: 15, borderRadius: 10, fontSize: 20, textAlign: 'center' },
+  loginTit: { color: 'white', fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
+  inputLogin: { backgroundColor: 'white', width: '80%', padding: 15, borderRadius: 10, textAlign: 'center' },
   btnLog: { backgroundColor: '#ffcc00', padding: 15, borderRadius: 10, marginTop: 20, width: '80%', alignItems: 'center' },
   header: { backgroundColor: '#003366', paddingTop: 50, paddingBottom: 15, paddingHorizontal: 20, flexDirection: 'row', justifyContent: 'space-between' },
   userT: { color: 'white', fontWeight: 'bold' },
-  label: { fontWeight: 'bold', marginTop: 15, color: '#333' },
-  input: { backgroundColor: 'white', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#ddd', marginTop: 5 },
-  picker: { backgroundColor: 'white', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#ddd', marginTop: 5 },
-  titSeccion: { fontSize: 18, fontWeight: 'bold', marginTop: 30, color: '#003366', textAlign: 'center' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 15 },
+  label: { fontWeight: 'bold', marginTop: 15 },
+  input: { backgroundColor: 'white', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#ddd' },
+  picker: { backgroundColor: 'white', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#ddd' },
+  titSec: { fontSize: 18, fontWeight: 'bold', marginTop: 25, textAlign: 'center' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   btnFoto: { backgroundColor: '#e1e8ee', width: '48%', padding: 15, borderRadius: 10, marginBottom: 10, alignItems: 'center' },
-  txtFoto: { fontSize: 9, textAlign: 'center', fontWeight: 'bold' },
   btnEnviar: { backgroundColor: '#28a745', padding: 20, borderRadius: 15, marginVertical: 30, alignItems: 'center' },
-  btnEnviarTxt: { color: 'white', fontWeight: 'bold', fontSize: 16 },
-  modalCont: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
-  modalInterno: { backgroundColor: 'white', width: '85%', maxHeight: '70%', borderRadius: 15, padding: 15 },
-  itemLista: { padding: 18, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  itemTxt: { fontSize: 16, textAlign: 'center' }
+  modalC: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
+  modalI: { backgroundColor: 'white', width: '80%', maxHeight: '60%', borderRadius: 15, padding: 20 },
+  item: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#eee' }
 });
