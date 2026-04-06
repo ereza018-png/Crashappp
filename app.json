@@ -20,7 +20,6 @@
       },
       "permissions": [
         "CAMERA",
-        "WRITE_EXTERNAL_STORAGE",
         "ACCESS_FINE_LOCATION"
       ]
     },
@@ -33,15 +32,11 @@
       "expo-splash-screen",
       [
         "expo-image-picker",
-        {
-          "photosPermission": "Permite usar la cámara para el reporte."
-        }
+        { "photosPermission": "Permite usar la cámara." }
       ],
       [
         "expo-location",
-        {
-          "locationAlwaysPermission": "Necesitamos tu ubicación para el siniestro."
-        }
+        { "locationAlwaysPermission": "Necesitamos tu ubicación." }
       ]
     ]
   }
