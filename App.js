@@ -8,7 +8,6 @@ import * as FileSystem from 'expo-file-system';
 
 const ASEGURADORAS = ["GNP", "AXA", "QUÁLITAS", "CHUBB", "HDI", "GENERAL DE SEGUROS", "MAPFRE", "OTRA"];
 const LISTA_ATENCION = ["PRESENCIAL", "TELEFÓNICA", "REMOTA"];
-const LISTA_RESPONSABILIDAD = ["CLIENTE", "TERCERO", "50/50", "POR DETERMINAR"];
 const ORDEN_FOTOS = ["DUA ANVERSO", "DUA REVERSO", "ENCUESTA", "VOLANTES", "SERIE", "ODÓMETRO", "LICENCIA", "TARJETA", "IDENTIFICACIONES", "DAÑOS", "TERCERO"];
 
 const URL_ACCESO = "https://raw.githubusercontent.com/ereza018-png/Crashappp/main/acceso.json";
@@ -18,7 +17,7 @@ export default function App() {
   const [autorizado, setAutorizado] = useState(false);
   const [perfil, setPerfil] = useState({ id: "", nombre: "" });
   const [inputID, setInputID] = useState("");
-  const [datos, setDatos] = useState({ aseguradora: 'Seleccionar', reporte: '', siniestro: '', atencion: 'Seleccionar', responsabilidad: 'Seleccionar' });
+  const [datos, setDatos] = useState({ aseguradora: 'Seleccionar', reporte: '', siniestro: '', atencion: 'Seleccionar' });
   const [attachments, setAttachments] = useState([]);
   const [modalList, setModalList] = useState({ visible: false, data: [], campo: '' });
 
@@ -54,29 +53,21 @@ export default function App() {
   };
 
   const tomarFoto = async (categoria) => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') return Alert.alert("Error", "Permiso de cámara denegado");
-    
     let result = await ImagePicker.launchCameraAsync({ quality: 0.4 });
     if (!result.canceled) {
-      const uri = result.assets[0].uri;
-      setAttachments([...attachments, { uri, label: categoria }]);
+      setAttachments([...attachments, { uri: result.assets[0].uri, label: categoria }]);
     }
   };
 
   const enviarReporte = async () => {
-    if (datos.aseguradora === 'Seleccionar' || !datos.reporte) return Alert.alert("Error", "Aseguradora y Reporte son obligatorios.");
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    let maps = "";
-    if (status === 'granted') {
-      const loc = await Location.getCurrentPositionAsync({});
-      maps = `https://www.google.com/maps?q=${loc.coords.latitude},${loc.coords.longitude}`;
-    }
+    if (datos.aseguradora === 'Seleccionar' || !datos.reporte) return Alert.alert("Error", "Faltan datos.");
+    const loc = await Location.getCurrentPositionAsync({});
+    const maps = `http://googleusercontent.com/maps.google.com/?q=${loc.coords.latitude},${loc.coords.longitude}`;
     
     await MailComposer.composeAsync({
-      recipients: ['tu-correo-real@gmail.com'], // PON AQUÍ TU CORREO
+      recipients: ['tu-correo-aqui@gmail.com'], // CAMBIA ESTO POR TU CORREO
       subject: `REPORTE: ${datos.aseguradora} - ${datos.reporte}`,
-      body: `AJUSTADOR: ${perfil.nombre}\nASEGURADORA: ${datos.aseguradora}\nREPORTE: ${datos.reporte}\nUBICACIÓN: ${maps}`,
+      body: `AJUSTADOR: ${perfil.nombre}\nREPORTE: ${datos.reporte}\nUBICACIÓN: ${maps}`,
       attachments: attachments.map(a => a.uri)
     });
   };
@@ -92,7 +83,7 @@ export default function App() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}><Text style={styles.userT}>{perfil.nombre}</Text><TouchableOpacity onPress={async () => { await AsyncStorage.clear(); BackHandler.exitApp(); }}><Text style={{color:'red'}}>SALIR</Text></TouchableOpacity></View>
+      <View style={styles.header}><Text style={styles.userT}>{perfil.nombre}</Text><TouchableOpacity onPress={async () => { await AsyncStorage.clear(); BackHandler.exitApp(); }}><Text style={{color:'red', fontWeight: 'bold'}}>SALIR</Text></TouchableOpacity></View>
       <ScrollView contentContainerStyle={{padding: 20}}>
         <Text style={styles.label}>Aseguradora:</Text>
         <TouchableOpacity style={styles.picker} onPress={() => setModalList({visible:true, data:ASEGURADORAS, campo:'aseguradora'})}><Text>{datos.aseguradora}</Text></TouchableOpacity>
@@ -103,10 +94,6 @@ export default function App() {
         <Text style={styles.label}>No. Siniestro:</Text>
         <TextInput style={styles.input} keyboardType="numeric" value={datos.siniestro} onChangeText={(t)=>setDatos({...datos, siniestro:t})} />
 
-        <Text style={styles.label}>Atención:</Text>
-        <TouchableOpacity style={styles.picker} onPress={() => setModalList({visible:true, data:LISTA_ATENCION, campo:'atencion'})}><Text>{datos.atencion}</Text></TouchableOpacity>
-
-        <Text style={styles.titSec}>FOTOGRAFÍAS</Text>
         <View style={styles.grid}>
           {ORDEN_FOTOS.map((cat, i) => (
             <TouchableOpacity key={i} style={[styles.btnFoto, attachments.find(a=>a.label===cat) && {backgroundColor:'#c3e6cb'}]} onPress={() => tomarFoto(cat)}>
@@ -115,13 +102,13 @@ export default function App() {
             </TouchableOpacity>
           ))}
         </View>
-        <TouchableOpacity style={styles.btnEnviar} onPress={enviarReporte}><Text style={{color:'white', fontWeight:'bold'}}>ENVIAR REPORTE</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.btnEnviar} onPress={enviarReporte}><Text style={{color:'white', fontWeight:'bold'}}>ENVIAR TODO</Text></TouchableOpacity>
       </ScrollView>
 
       <Modal visible={modalList.visible} transparent animationType="slide">
         <View style={styles.modalC}><View style={styles.modalI}>
-          <FlatList data={modalList.data} keyExtractor={(item)=>item} renderItem={({item})=>(
-            <TouchableOpacity style={styles.item} onPress={()=>{setDatos({...datos, [modalList.campo]:item}); setModalList({visible:false, data:[], campo:''})}}><Text>{item}</Text></TouchableOpacity>
+          <FlatList data={modalList.data} renderItem={({item})=>(
+            <TouchableOpacity style={styles.item} onPress={()=>{setDatos({...datos, [modalList.campo]:item}); setModalList({visible:false, data:[], campo:''})}}><Text style={{textAlign: 'center'}}>{item}</Text></TouchableOpacity>
           )} />
           <TouchableOpacity onPress={()=>setModalList({visible:false, data:[], campo:''})}><Text style={{color:'red', textAlign:'center', marginTop:15}}>CERRAR</Text></TouchableOpacity>
         </View></View>
@@ -131,7 +118,7 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
+  container: { flex: 1, backgroundColor: '#f4f7f6' },
   centrado: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   bloqueo: { flex: 1, backgroundColor: '#003366', justifyContent: 'center', alignItems: 'center' },
   loginTit: { color: 'white', fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
@@ -140,13 +127,12 @@ const styles = StyleSheet.create({
   header: { backgroundColor: '#003366', paddingTop: 50, paddingBottom: 15, paddingHorizontal: 20, flexDirection: 'row', justifyContent: 'space-between' },
   userT: { color: 'white', fontWeight: 'bold' },
   label: { fontWeight: 'bold', marginTop: 15 },
-  input: { backgroundColor: '#f9f9f9', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#ddd' },
-  picker: { backgroundColor: '#f9f9f9', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#ddd' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  btnFoto: { backgroundColor: '#eee', width: '48%', padding: 15, borderRadius: 10, marginBottom: 10, alignItems: 'center' },
+  input: { backgroundColor: 'white', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#ddd' },
+  picker: { backgroundColor: 'white', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#ddd' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 20 },
+  btnFoto: { backgroundColor: '#e1e8ee', width: '48%', padding: 15, borderRadius: 10, marginBottom: 10, alignItems: 'center' },
   btnEnviar: { backgroundColor: '#28a745', padding: 20, borderRadius: 15, marginVertical: 30, alignItems: 'center' },
-  modalC: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  modalC: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
   modalI: { backgroundColor: 'white', width: '80%', maxHeight: '60%', borderRadius: 15, padding: 20 },
-  item: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  titSec: { fontSize: 18, fontWeight: 'bold', marginVertical: 20, textAlign: 'center' }
+  item: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#eee' }
 });
