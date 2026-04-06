@@ -12,35 +12,26 @@
       "backgroundColor": "#003366"
     },
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.ereza018.crashapp"
+      "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#003366"
       },
-      "package": "com.ereza018.crashapp",
-      "permissions": [
-        "CAMERA",
-        "RECORD_AUDIO",
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION",
-        "WRITE_EXTERNAL_STORAGE"
-      ]
+      "package": "com.ereza018.crashapp"
     },
     "plugins": [
       [
         "expo-image-picker",
         {
-          "photosPermission": "La aplicación necesita acceso a tus fotos para adjuntarlas al reporte.",
-          "cameraPermission": "La aplicación necesita acceso a la cámara para documentar el siniestro."
+          "photosPermission": "Acceso a fotos necesario."
         }
       ],
       [
         "expo-location",
         {
-          "locationAlwaysPermission": "Necesitamos tu ubicación para validar el lugar del siniestro."
+          "locationAlwaysPermission": "Ubicación necesaria."
         }
       ]
     ]
