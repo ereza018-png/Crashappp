@@ -11,9 +11,6 @@
       "resizeMode": "contain",
       "backgroundColor": "#003366"
     },
-    "ios": {
-      "supportsTablet": true
-    },
     "android": {
       "package": "com.ereza018.crashapp",
       "adaptiveIcon": {
@@ -26,9 +23,10 @@
         "projectId": "3687876b-8496-4caf-8083-f29cfc9d7262"
       }
     },
+    "owner": "crashitc",
     "plugins": [
-      ["expo-image-picker", { "photosPermission": "Permiso para cámara necesario." }],
-      ["expo-location", { "locationAlwaysPermission": "Permiso para GPS necesario." }]
+      ["expo-image-picker", { "photosPermission": "Permiso para cámara." }],
+      ["expo-location", { "locationAlwaysPermission": "Permiso para GPS." }]
     ]
   }
 }
