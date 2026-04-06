@@ -44,7 +44,7 @@ export default function App() {
         const validado = config.usuarios_autorizados.find(u => u.id === p.id);
         if (validado) { setPerfil(validado); setAutorizado(true); }
       }
-    } catch (e) { console.log("Offline"); }
+    } catch (e) { console.log("Modo Offline"); }
     setLoadingSeg(false);
   };
 
@@ -65,7 +65,7 @@ export default function App() {
 
   const tomarFoto = async (categoria) => {
     try {
-      let result = await ImagePicker.launchCameraAsync({ quality: 0.4 });
+      let result = await ImagePicker.launchCameraAsync({ quality: 0.4, allowsEditing: false });
       if (!result.canceled) {
         const uri = result.assets[0].uri;
         const destino = FileSystem.cacheDirectory + `${categoria}.jpg`;
@@ -78,10 +78,10 @@ export default function App() {
   const enviarReporte = async () => {
     if (datos.aseguradora === 'Seleccionar' || !datos.reporte) return Alert.alert("Error", "Faltan datos.");
     const loc = await Location.getCurrentPositionAsync({});
-    const maps = `https://www.google.com/maps?q=${loc.coords.latitude},${loc.coords.longitude}`;
+    const maps = `http://googleusercontent.com/maps.google.com/?q=${loc.coords.latitude},${loc.coords.longitude}`;
     
     await MailComposer.composeAsync({
-      recipients: ['tu-correo@ejemplo.com'], // CAMBIA ESTO
+      recipients: ['tu-correo@ejemplo.com'], // CAMBIA ESTO POR TU CORREO REAL
       subject: `REPORTE: ${datos.aseguradora} - ${datos.reporte}`,
       body: `AJUSTADOR: ${perfil.nombre}\nASEGURADORA: ${datos.aseguradora}\nREPORTE: ${datos.reporte}\nUBICACIÓN: ${maps}`,
       attachments: attachments.map(a => a.uri)
@@ -93,13 +93,13 @@ export default function App() {
     <View style={styles.bloqueo}>
       <Text style={styles.loginTit}>CRASH ASESORES</Text>
       <TextInput style={styles.inputLogin} placeholder="ID AJUSTADOR" value={inputID} onChangeText={setInputID} autoCapitalize="characters" />
-      <TouchableOpacity style={styles.btnLog} onPress={login}><Text style={{fontWeight:'bold'}}>ENTRAR</Text></TouchableOpacity>
+      <TouchableOpacity style={styles.btnLog} onPress={login}><Text style={{fontWeight:'bold', color: '#003366'}}>ENTRAR</Text></TouchableOpacity>
     </View>
   );
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}><Text style={styles.userT}>{perfil.nombre}</Text><TouchableOpacity onPress={async () => { await AsyncStorage.clear(); BackHandler.exitApp(); }}><Text style={{color:'red'}}>SALIR</Text></TouchableOpacity></View>
+      <View style={styles.header}><Text style={styles.userT}>{perfil.nombre}</Text><TouchableOpacity onPress={async () => { await AsyncStorage.clear(); BackHandler.exitApp(); }}><Text style={{color:'red', fontWeight: 'bold'}}>SALIR</Text></TouchableOpacity></View>
       <ScrollView contentContainerStyle={{padding: 20}}>
         <Text style={styles.label}>Aseguradora:</Text>
         <TouchableOpacity style={styles.picker} onPress={() => setModalList({visible:true, data:ASEGURADORAS, campo:'aseguradora'})}><Text>{datos.aseguradora}</Text></TouchableOpacity>
@@ -113,23 +113,27 @@ export default function App() {
         <Text style={styles.label}>Atención:</Text>
         <TouchableOpacity style={styles.picker} onPress={() => setModalList({visible:true, data:LISTA_ATENCION, campo:'atencion'})}><Text>{datos.atencion}</Text></TouchableOpacity>
 
+        <Text style={styles.label}>Responsabilidad:</Text>
+        <TouchableOpacity style={styles.picker} onPress={() => setModalList({visible:true, data:LISTA_RESPONSABILIDAD, campo:'responsabilidad'})}><Text>{datos.responsabilidad}</Text></TouchableOpacity>
+
         <Text style={styles.titSec}>FOTOGRAFÍAS</Text>
         <View style={styles.grid}>
           {ORDEN_FOTOS.map((cat, i) => (
             <TouchableOpacity key={i} style={[styles.btnFoto, attachments.find(a=>a.label===cat) && {backgroundColor:'#c3e6cb'}]} onPress={() => tomarFoto(cat)}>
-              <Text style={{fontSize:9, fontWeight:'bold'}}>{cat}</Text>
+              <Text style={{fontSize:9, fontWeight:'bold', textAlign: 'center'}}>{cat}</Text>
+              {attachments.find(a=>a.label===cat) && <Text>✅</Text>}
             </TouchableOpacity>
           ))}
         </View>
         <TouchableOpacity style={styles.btnEnviar} onPress={enviarReporte}><Text style={{color:'white', fontWeight:'bold'}}>ENVIAR TODO</Text></TouchableOpacity>
       </ScrollView>
 
-      <Modal visible={modalList.visible} transparent animationType="fade">
+      <Modal visible={modalList.visible} transparent animationType="slide">
         <View style={styles.modalC}><View style={styles.modalI}>
-          <FlatList data={modalList.data} renderItem={({item})=>(
-            <TouchableOpacity style={styles.item} onPress={()=>{setDatos({...datos, [modalList.campo]:item}); setModalList({visible:false, data:[], campo:''})}}><Text>{item}</Text></TouchableOpacity>
+          <FlatList data={modalList.data} keyExtractor={(item)=>item} renderItem={({item})=>(
+            <TouchableOpacity style={styles.item} onPress={()=>{setDatos({...datos, [modalList.campo]:item}); setModalList({visible:false, data:[], campo:''})}}><Text style={{textAlign: 'center'}}>{item}</Text></TouchableOpacity>
           )} />
-          <TouchableOpacity onPress={()=>setModalList({visible:false, data:[], campo:''})}><Text style={{color:'red', textAlign:'center', marginTop:10}}>CERRAR</Text></TouchableOpacity>
+          <TouchableOpacity onPress={()=>setModalList({visible:false, data:[], campo:''})}><Text style={{color:'red', textAlign:'center', marginTop:15}}>CANCELAR</Text></TouchableOpacity>
         </View></View>
       </Modal>
     </View>
@@ -141,18 +145,18 @@ const styles = StyleSheet.create({
   centrado: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   bloqueo: { flex: 1, backgroundColor: '#003366', justifyContent: 'center', alignItems: 'center' },
   loginTit: { color: 'white', fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
-  inputLogin: { backgroundColor: 'white', width: '80%', padding: 15, borderRadius: 10, textAlign: 'center' },
+  inputLogin: { backgroundColor: 'white', width: '80%', padding: 15, borderRadius: 10, textAlign: 'center', fontSize: 18 },
   btnLog: { backgroundColor: '#ffcc00', padding: 15, borderRadius: 10, marginTop: 20, width: '80%', alignItems: 'center' },
   header: { backgroundColor: '#003366', paddingTop: 50, paddingBottom: 15, paddingHorizontal: 20, flexDirection: 'row', justifyContent: 'space-between' },
   userT: { color: 'white', fontWeight: 'bold' },
-  label: { fontWeight: 'bold', marginTop: 15 },
-  input: { backgroundColor: 'white', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#ddd' },
-  picker: { backgroundColor: 'white', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#ddd' },
-  titSec: { fontSize: 18, fontWeight: 'bold', marginTop: 25, textAlign: 'center' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  btnFoto: { backgroundColor: '#e1e8ee', width: '48%', padding: 15, borderRadius: 10, marginBottom: 10, alignItems: 'center' },
+  label: { fontWeight: 'bold', marginTop: 15, color: '#333' },
+  input: { backgroundColor: 'white', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#ddd', marginTop: 5 },
+  picker: { backgroundColor: 'white', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#ddd', marginTop: 5 },
+  titSec: { fontSize: 18, fontWeight: 'bold', marginTop: 30, textAlign: 'center', color: '#003366' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 10 },
+  btnFoto: { backgroundColor: '#e1e8ee', width: '48%', padding: 15, borderRadius: 10, marginBottom: 10, alignItems: 'center', justifyContent: 'center' },
   btnEnviar: { backgroundColor: '#28a745', padding: 20, borderRadius: 15, marginVertical: 30, alignItems: 'center' },
   modalC: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
-  modalI: { backgroundColor: 'white', width: '80%', maxHeight: '60%', borderRadius: 15, padding: 20 },
-  item: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#eee' }
+  modalI: { backgroundColor: 'white', width: '85%', maxHeight: '70%', borderRadius: 20, padding: 20 },
+  item: { padding: 18, borderBottomWidth: 1, borderBottomColor: '#eee' }
 });
