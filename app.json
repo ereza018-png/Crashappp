@@ -6,7 +6,11 @@
     "orientation": "portrait",
     "icon": "./icon.png",
     "userInterfaceStyle": "light",
-    "ios": { "supportsTablet": true },
+    "splash": {
+      "image": "./icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#003366"
+    },
     "android": {
       "package": "com.ereza018.crashapp",
       "adaptiveIcon": {
@@ -15,8 +19,8 @@
       }
     },
     "plugins": [
-      ["expo-image-picker", { "photosPermission": "Acceso necesario" }],
-      ["expo-location", { "locationAlwaysPermission": "Acceso necesario" }]
+      ["expo-image-picker", { "photosPermission": "Acceso a fotos necesario" }],
+      ["expo-location", { "locationAlwaysPermission": "Ubicación necesaria" }]
     ]
   }
 }
