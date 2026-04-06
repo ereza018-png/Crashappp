@@ -4,36 +4,19 @@
     "slug": "crash-asesores-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./icon.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#003366"
-    },
-    "ios": {
-      "supportsTablet": true
-    },
+    "ios": { "supportsTablet": true },
     "android": {
+      "package": "com.ereza018.crashapp",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
+        "foregroundImage": "./icon.png",
         "backgroundColor": "#003366"
-      },
-      "package": "com.ereza018.crashapp"
+      }
     },
     "plugins": [
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "Acceso a fotos necesario."
-        }
-      ],
-      [
-        "expo-location",
-        {
-          "locationAlwaysPermission": "Ubicación necesaria."
-        }
-      ]
+      ["expo-image-picker", { "photosPermission": "Acceso necesario" }],
+      ["expo-location", { "locationAlwaysPermission": "Acceso necesario" }]
     ]
   }
 }
