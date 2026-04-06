@@ -1,4 +1,20 @@
 {
-  "usuarios_autorizados": [],
+  "usuarios_autorizados": [
+    {
+      "id": "20111978",
+      "nombre": "EDGAR ALBERTO REZA MALDONADO",
+      "correo": "ereza018@gmail.com"
+    },
+    {
+      "id": "19012016",
+      "nombre": "DIEGO REZA GUEVARA",
+      "correo": "crashasesoressc@gmail.com"
+    },
+    {
+      "id": "1799545",
+      "nombre": "JUAN MANUEL ESPINOSA CANO",
+      "correo": "j.espinosacano@gmail.com"
+    }
+  ],
   "mensaje_bloqueo": "ACCESO DENEGADO.\n\nUsuario inactivo."
 }
