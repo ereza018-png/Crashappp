@@ -6,20 +6,12 @@
     "orientation": "portrait",
     "icon": "./icon.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#003366"
-    },
     "android": {
-      "package": "com.ereza018.crashapp",
+      "package": "com.ereza018.appcrashnueva",
       "versionCode": 1,
-      "adaptiveIcon": {
-        "foregroundImage": "./icon.png",
-        "backgroundColor": "#003366"
-      },
       "permissions": [
         "CAMERA",
+        "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
         "ACCESS_FINE_LOCATION"
       ]
@@ -30,14 +22,8 @@
       }
     },
     "plugins": [
-      [
-        "expo-image-picker",
-        { "photosPermission": "La app necesita usar la cámara para el reporte." }
-      ],
-      [
-        "expo-location",
-        { "locationAlwaysPermission": "Necesitamos tu ubicación para el siniestro." }
-      ]
+      ["expo-image-picker", { "photosPermission": "Permite usar la cámara para el reporte." }],
+      ["expo-location", { "locationAlwaysPermission": "Necesitamos tu ubicación para el siniestro." }]
     ]
   }
 }
