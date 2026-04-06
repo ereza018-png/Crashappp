@@ -33,11 +33,11 @@
       "expo-splash-screen",
       [
         "expo-image-picker",
-        { "photosPermission": "Permite usar la cámara." }
+        { "photosPermission": "Permite usar la cámara para el reporte." }
       ],
       [
         "expo-location",
-        { "locationAlwaysPermission": "Permite usar la ubicación." }
+        { "locationAlwaysPermission": "Necesitamos tu ubicación para el siniestro." }
       ]
     ]
   }
