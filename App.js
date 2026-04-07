@@ -1,276 +1,296 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, TextInput, Alert, Modal, FlatList, ActivityIndicator } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as ImagePicker from 'expo-image-picker';
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  StyleSheet, Text, View, TouchableOpacity, ScrollView,
+  TextInput, Modal, Alert, Image, Dimensions, ActivityIndicator, KeyboardAvoidingView, Platform
+} from 'react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as ImageManipulator from 'expo-image-manipulator';
 import * as MailComposer from 'expo-mail-composer';
 import * as FileSystem from 'expo-file-system';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import * as Location from 'expo-location';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
-// --- PALETA DE COLORES ---
-const THEME = {
-  primary: '#003366', // Azul oscuro corporativo
-  secondary: '#0066CC', // Azul más claro para elementos activos
-  accent: '#FFCC00', // Dorado para el botón principal
-  bg: '#FFF',
-  bgGray: '#FAFAFA',
-  border: '#CCC',
-  text: 'black',
-  textLight: '#888',
-  white: 'white'
-};
-
-const LISTAS = {
-  aseguradoras: ["HDI", "EL ÁGUILA", "GEN DE SEG", "ALLIANZ", "ANA SEGUROS", "CHUBB", "ZURICH", "MOMENTO", "OTRA"],
-  atencion: ["COMPLEMENTARIA", "SIN PÓLIZA", "DIVERSOS", "KM", "PEAJE"],
-  acuerdos: ["COBRO SIPAC", "COBRO COPAC", "RECUPERACIÓN EFECTIVO", "RECUPERACIÓN TDD", "RECUPERACIÓN GOA", "RECUPERACIÓN MODULO", "COSTO ASEGURADO", "CRISTAL", "SEGURO DE RINES Y LLANTAS", "ROBO PARCIAL", "ROBO TOTAL", "JURÍDICO", "PLAN PISO", "CASH FLOW", "INVESTIGACIÓN", "COMPLEMENTO", "PAGO SIPAC", "PAGO COPAC", "COSTO TERCERO", "PAGO UMAS Y DEDUCIBLES", "S/C ARREGLO ENTRE PARTICULARES", "S/C MENOR AL DEDUCIBLE", "IMPROCEDENTE", "S/C SIN PÓLIZA", "RECHAZO", "NO LOCALIZADO", "DIVERSOS", "CANCELADO 10 < NO FACTURAR"],
-  responsabilidad: ["ASEGURADO", "TERCERO", "CORRESPONSABILIDAD"],
-  circunstancias: ["ALCANCE", "PASADA DE ALTO", "INVASIÓN DE CARRIL", "REVERSA", "ESTACIONADO", "CAMBIO DE CARRIL", "SENTIDO CONTRARIO", "OTRO"]
-};
-
-const ORDEN_FOTOS = [
-  "DUA ANVERSO", "DUA REVERSO", "ENCUESTA SATISFACCIÓN", "LICENCIA", "TARJETA CIRCULACIÓN", 
-  "NÚMERO DE VIN", "ODÓMETRO", "IDENTIFICACIONES", "VOLANTES", "OTROS DOCUMENTOS", "DAÑOS", "MÉTODO CRONOS",
-  "DOCUMENTOS TERCERO", "DAÑOS TERCERO", "PROCEDIMIENTO CRONOS TERCERO"
-];
-
-const URL_ACCESO = "https://raw.githubusercontent.com/ereza018-png/Crashappp/main/acceso.json";
+const { width } = Dimensions.get('window');
 
 export default function App() {
-  const [autorizado, setAutorizado] = useState(false);
-  const [perfil, setPerfil] = useState({ id: "", nombre: "" });
-  const [inputID, setInputID] = useState("");
-  const [loading, setLoading] = useState(false);
-  const refSiniestro = useRef(); 
+  const [permission, requestPermission] = useCameraPermissions();
+  const cameraRef = useRef(null);
 
-  const [datos, setDatos] = useState({
-    aseguradora: '', reporte: '', siniestro: '', atencion: [], acuerdo: '', 
-    responsabilidad: '', circunstancias: ''
+  // --- SISTEMA DE LOGIN ---
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userId, setUserId] = useState('');
+
+  // --- DATOS DEL REPORTE ---
+  const [aseguradora, setAseguradora] = useState('Seleccionar');
+  const [atencion, setAtencion] = useState('Seleccionar');
+  const [reporteNum, setReporteNum] = useState('');
+  const [siniestroNum, setSiniestroNum] = useState('');
+  const [acuerdo, setAcuerdo] = useState('Seleccionar');
+  const [responsabilidad, setResponsabilidad] = useState('Seleccionar');
+  const [circunstancia, setCircunstancia] = useState('Seleccionar');
+
+  // --- ACUERDOS IMPORTANTES (DATOS ESPECÍFICOS) ---
+  const [datosAcuerdos, setDatosAcuerdos] = useState({
+    recuperacion: '', autRecuperacion: '',
+    complemento: '', autComplemento: ''
   });
-  const [attachments, setAttachments] = useState([]);
-  const [modalVisible, setModalVisible] = useState({ visible: false, tipo: '', datos: [] });
-  const [searchText, setSearchText] = useState(''); // Estado para el buscador
 
-  const RUTA_RESPALDO = FileSystem.documentDirectory + 'Respaldo_Crashito/';
+  // --- MULTIMEDIA ---
+  const [evidencias, setEvidencias] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [location, setLocation] = useState(null);
 
-  useEffect(() => { 
-    asegurarCarpeta();
-    checarAcceso(); 
-  }, []);
+  // --- UI ---
+  const [modalGeneric, setModalGeneric] = useState({ visible: false, title: '', options: [], setter: null });
+  const [modalVisor, setModalVisor] = useState({ visible: false, folder: '', sub: '' });
+  const [cameraActive, setCameraActive] = useState(false);
+  const [currentFolder, setCurrentFolder] = useState('');
+  const [currentSubFolder, setCurrentSubFolder] = useState('');
+  const [tempPhoto, setTempPhoto] = useState(null);
+  const [rotation, setRotation] = useState(0);
 
-  const asegurarCarpeta = async () => {
-    const info = await FileSystem.getInfoAsync(RUTA_RESPALDO);
-    if (!info.exists) await FileSystem.makeDirectoryAsync(RUTA_RESPALDO, { intermediates: true });
+  // --- LISTAS SOLICITADAS ---
+  const listaAseguradoras = ["HDI", "EL ÁGUILA", "GEN DE SEG", "ALLIANZ", "ANA SEGUROS", "CHUBB", "QUALITAS", "AXA", "GNP", "OTRAS"];
+  const opcionesAtencion = ["COMPLEMENTARIA", "SINIESTRO SIN PÓLIZA", "DIVERSOS", "KM", "PEAJE"];
+  const opcionesResponsabilidad = ["ASEGURADO", "TERCERO", "CORRESPONSABILIDAD", "PENDIENTE"];
+  const opcionesAcuerdos = ["COBRO SIPAC", "COBRO COPAC", "RECUPERACIÓN EFECTIVO", "RECUPERACIÓN TDD", "RECUPERACIÓN GOA", "RECUPERACIÓN MODULO", "COSTO ASEGURADO", "CRISTAL", "SEGURO DE RINES Y LLANTAS", "ROBO PARCIAL", "ROBO TOTAL", "JURÍDICO", "PLAN PISO", "CASH FLOW", "INVESTIGACIÓN", "COMPLEMENTO", "PAGO SIPAC", "PAGO COPAC", "COSTO TERCERO", "PAGO UMAS Y DEDUCIBLES", "S/C ARREGLO ENTRE PARTICULARES", "S/C MENOR AL DEDUCIBLE", "IMPROCEDENTE", "S/C SIN PÓLIZA", "RECHAZO", "NO LOCALIZADO", "DIVERSOS", "CANCELADO 10< NO FACTURAR"];
+  
+  const opcionesCircunstancias = ["AGRAVAMIENTO DE DAÑO", "ALCANCE", "AMPLITUD Y/O AFLUENCIA", "APERTURA DE PUERTA", "ASESORÍA", "ATROPELLO", "BACHE", "CAÍDA DE OBJETOS", "CAMBIO DE CARRIL", "CARRIL DE CONTRA FLUJO", "CASH FLOW RECUPERACIÓN", "CIRCULABA A LA IZQUIERDA EN CRUCERO", "DE IGUAL AMPLITUD", "CIRCULABA SOBRE LA VÍA PRINCIPAL", "CIRCULABA SOBRE LA VÍA SECUNDARIA", "CITA POSTERIOR", "CORTE DE CIRCULACIÓN", "CUNETA", "DAÑOS OCASIONADOS POR LA CARGA", "DIVERSOS", "DUPLICADO", "ENTRE CARRILES", "ESTACIONADO", "EXCESO DE VELOCIDAD", "FALLA MECÁNICA", "INCORPORACIÓN", "INUNDACIÓN", "INVACIÓN DE CARRIL", "LIBERACIÒN DE VEHÍCULO", "MANIOBRAS PARA ESTACIONARSE", "NO LOCALIZADO", "NO TOMÉ EL EXTREMO", "OBJETO FIJO", "PAGO DE DAÑOS PAGO SIPAC/COPAC", "PARTES BAJAS", "PASADA DE ALTO", "PASES MÉDICOS", "PENDIENTE DECLARACIÓN", "PERDER EL CONTROL", "RECUPERACIÓN (RECUPERACIÓN,UMAS)", "RECUPERACIÓN COPAC/SIPAC", "RECUPERACIÓN DE VEHÍCULO POR ROBO", "REVERSA", "ROBO PARCIAL", "ROBO TOTAL", "ROTURA DE CRISTAL", "SALIDA DE CAMINO", "SALÍDA DE COCHERA", "SEMOVIENTE", "SENTIDO CONTRARIO", "SEÑAL PREVENTIVA", "SEÑAL RESTRICTIVA", "SIN COSTO", "TRASLADO", "VALE DE GRÚA", "VALET PARKING", "VANDALISMO", "VEHÍCULO RECUPERADO", "VIOLENCIA", "VISTA A LA DERECHA", "VOLANTE DE ADMISIÓN", "VOLANTE DE ADMISIÓN Y GRÚA", "VOLCADURA", "VUELTA A LA DERECHA", "VUELTA A LA IZQUIERDA", "VUELTA DESDE EL SEGUNDO CARRIL", "VUELTA EN U", "VUELTA PROHIBIDA", "GRANIZO", "DERRAPO", "OTRO"];
+
+  const subAsegurado = ["DUA ANVERSO", "DUA REVERSO", "ENCUESTA SATISFACCIÓN", "LICENCIA", "TARJETA CIRCULACIÓN", "NÚMERO DE VIN", "ODÓMETRO", "IDENTIFICACIONES", "VOLANTES", "OTROS DOCUMENTOS", "DAÑOS", "MÉTODO CRONOS"];
+  const subTercero = ["DOCUMENTOS", "DAÑOS", "PROCEDIMIENTO CRONOS"];
+
+  // --- ACUERDOS IMPORTANTES (SUB-CARPETAS) ---
+  const subAcuerdosImp = {
+    "RECUPERACIÓN": ["RECIBO RECUPERACIÓN", "PANTALLA BOT"],
+    "COBRO SIPAC/COPAC": ["FISICO DUA AMARILLO ANVERSO", "FISICO DUA AMARILLO REVERSO", "DIGITAL", "E-DUA"],
+    "COMPLEMENTO": ["PANTALLAS"],
+    "NO LOCALIZADO": ["PANTALLAS"],
+    "DIVERSOS": ["PANTALLAS"],
+    "MODULOS": ["PÓLIZA AMPLIA", "SEG RINES Y LLANTAS", "ROBO PARCIAL"],
+    "ROBO TOTAL": ["DOCUMENTOS"]
   };
 
-  const checarAcceso = async () => {
-    try {
-      const res = await fetch(URL_ACCESO);
-      const config = res.ok ? await res.json() : null;
-      const pLocal = await AsyncStorage.getItem('@perfil');
-      if (config && pLocal) {
-        const p = JSON.parse(pLocal);
-        if (config.usuarios_autorizados.find(u => u.id === p.id)) {
-          setPerfil(p); setAutorizado(true);
-        }
-      }
-    } catch (e) { console.log("Error de conexión", e); }
+  // --- FUNCIONES ---
+  const handleLogin = () => {
+    if (userId.length > 2) setIsLoggedIn(true);
+    else Alert.alert("Error", "Ingresa un ID válido");
   };
 
-  const login = async () => {
+  const procesarMultimedia = async (folder, sub) => {
+    Alert.alert("Seleccionar Origen", "¿De dónde quieres obtener la imagen?", [
+      { text: "Cámara", onPress: () => { setCurrentFolder(folder); setCurrentSubFolder(sub); setCameraActive(true); } },
+      { text: "Galería", onPress: () => abrirGaleria(folder, sub) },
+      { text: "Archivos / Drive", onPress: () => abrirArchivos(folder, sub) },
+      { text: "Cancelar", style: "cancel" }
+    ]);
+  };
+
+  const abrirGaleria = async (folder, sub) => {
+    let res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.5 });
+    if (!res.canceled) agregarEvidencia(folder, sub, res.assets[0].uri);
+  };
+
+  const abrirArchivos = async (folder, sub) => {
+    let res = await DocumentPicker.getDocumentAsync({ type: 'image/*' });
+    if (!res.canceled) agregarEvidencia(folder, sub, res.assets[0].uri);
+  };
+
+  const agregarEvidencia = (folder, sub, uri) => {
+    const key = `${folder}_${sub}`;
+    setEvidencias(prev => ({ ...prev, [key]: [...(prev[key] || []), { uri, id: Math.random().toString() }] }));
+  };
+
+  const enviarMail = async () => {
+    if (reporteNum === '') { Alert.alert("Error", "Falta N° Reporte"); return; }
     setLoading(true);
-    try {
-      const res = await fetch(URL_ACCESO);
-      const config = await res.json();
-      const user = config.usuarios_autorizados.find(u => u.id === inputID.trim().toUpperCase());
-      if (user) {
-        await AsyncStorage.setItem('@perfil', JSON.stringify(user));
-        setPerfil(user); setAutorizado(true);
-      } else { Alert.alert("Error", "ID No Autorizado"); }
-    } catch (e) { Alert.alert("Error", "Sin Conexión"); }
+    let attachments = [];
+    for (let key in evidencias) {
+      for (let img of evidencias[key]) {
+        attachments.push(img.uri);
+      }
+    }
+    await MailComposer.composeAsync({
+      recipients: ['reportes@crashasesores.com'],
+      subject: `ID:${userId} | ${aseguradora} | REP:${reporteNum}`.toUpperCase(),
+      body: `Acuerdo: ${acuerdo}\nResponsabilidad: ${responsabilidad}\nCircunstancia: ${circunstancia}`,
+      attachments
+    });
     setLoading(false);
   };
 
-  const abrirSelector = (tipo, lista) => {
-    setSearchText(''); // Limpiamos el buscador al abrir
-    setModalVisible({ visible: true, tipo, datos: lista });
-  };
-
-  const seleccionarOpcion = (item) => {
-    const { tipo } = modalVisible;
-    if (tipo === 'atencion') {
-      let at = [...datos.atencion];
-      at.includes(item) ? at = at.filter(x => x !== item) : at.push(item);
-      setDatos({ ...datos, atencion: at });
-    } else {
-      setDatos({ ...datos, [tipo]: item });
-      setModalVisible({ visible: false, tipo: '', datos: [] });
-    }
-  };
-
-  const manejarImagen = async (tipo, cat) => {
-    const opciones = { quality: 0.3 };
-    const res = tipo === 'camara' ? await ImagePicker.launchCameraAsync(opciones) : await ImagePicker.launchImageLibraryAsync(opciones);
-    if (!res.canceled) {
-      const hoy = new Date();
-      const fecha = `${hoy.getDate()}-${hoy.getMonth() + 1}-${hoy.getFullYear()}_${hoy.getHours()}${hoy.getMinutes()}`;
-      const aseg = datos.aseguradora ? datos.aseguradora : 'SIN_ASEGURADORA';
-      const rep = datos.reporte ? datos.reporte : 'SIN_REPORTE';
-      const nombreFinal = `${aseg}_REP_${rep}_${cat}_${fecha}.jpg`.replace(/\s+/g, '_').toUpperCase();
-      const destino = RUTA_RESPALDO + nombreFinal;
-      await FileSystem.copyAsync({ from: res.assets[0].uri, to: destino });
-      setAttachments([...attachments, { uri: destino, label: cat }]);
-    }
-  };
-
-  const enviarReporte = async () => {
-    const isAvailable = await MailComposer.isAvailableAsync();
-    if (!isAvailable) return Alert.alert("Error", "No tienes una App de correo configurada en el celular.");
-    if (!datos.aseguradora || !datos.reporte || !datos.siniestro) return Alert.alert("Faltan Datos", "Llena Aseguradora, Reporte y Siniestro.");
-    
-    const asunto = `${datos.aseguradora} reporte ${datos.reporte} siniestro ${datos.siniestro} atencion ${datos.atencion.join(' ')}`.toUpperCase();
-    const ordenadas = [...attachments].sort((a, b) => ORDEN_FOTOS.indexOf(a.label) - ORDEN_FOTOS.indexOf(b.label));
-
-    try {
-      await MailComposer.composeAsync({
-        recipients: ['reportes@crashasesores.com'],
-        subject: asunto,
-        body: `REPORTE: ${perfil.nombre}\n\nAcuerdo: ${datos.acuerdo}\nResponsabilidad: ${datos.responsabilidad}\nCircunstancias: ${datos.circunstancias}`,
-        attachments: ordenadas.map(f => f.uri)
-      });
-    } catch (e) {
-      Alert.alert("Error", "No se pudo abrir la aplicación de correo.");
-    }
-  };
-
-  // --- RENDERIZADO DE COMPONENTES REUTILIZABLES ---
-  const renderDropdown = (label, value, tipo, lista) => (
-    <View style={styles.dropdownContainer}>
-      <Text style={styles.label}>{label}</Text>
-      <TouchableOpacity style={styles.pickerBtn} onPress={() => abrirSelector(tipo, lista)}>
-        <Text style={value ? styles.dropText : styles.dropTextPlaceholder}>
-          {value || `Seleccionar ${label.toLowerCase()}...`}
-        </Text>
-        <Text style={styles.dropIcon}>▼</Text> 
-      </TouchableOpacity>
-    </View>
-  );
-
-  if (!autorizado) return (
-    <View style={styles.loginPage}>
-      <Text style={styles.loginTitle}>CRASH ASESORES</Text>
-      <TextInput style={styles.loginInput} placeholder="ID AJUSTADOR" value={inputID} onChangeText={setInputID} keyboardType="numeric" />
-      {loading ? <ActivityIndicator size="large" color="#FFCC00" style={{marginTop:20}} /> : <TouchableOpacity style={styles.loginBtn} onPress={login}><Text style={{fontWeight:'bold'}}>ENTRAR</Text></TouchableOpacity>}
-    </View>
-  );
+  // --- VISTAS ---
+  if (!isLoggedIn) {
+    return (
+      <View style={styles.loginContainer}>
+        <Image source={{uri: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'}} style={{width: 100, height: 100, marginBottom: 20}} />
+        <Text style={styles.loginTitle}>CRASH ASESORES</Text>
+        <TextInput style={styles.loginInput} placeholder="ID DE INGRESO" value={userId} onChangeText={setUserId} autoCapitalize="characters" />
+        <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}><Text style={styles.whiteTxt}>INGRESAR</Text></TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={{ color: THEME.white, fontWeight: 'bold' }}>{perfil.nombre}</Text>
-        <TouchableOpacity onPress={() => setAutorizado(false)}><Text style={{ color: 'red', fontWeight:'bold' }}>SALIR</Text></TouchableOpacity>
-      </View>
-
-      <ScrollView style={{ padding: 20 }}>
-        <Text style={styles.sectionT}>DATOS PRINCIPALES</Text>
-        {renderDropdown('ASEGURADORA', datos.aseguradora, 'aseguradora', LISTAS.aseguradoras)}
-
-        <Text style={styles.label}>NÚMERO DE REPORTE</Text>
-        <TextInput style={styles.input} keyboardType="numeric" returnKeyType="next" onSubmitEditing={() => refSiniestro.current.focus()} onChangeText={v => setDatos({ ...datos, reporte: v })} />
-
-        <Text style={styles.label}>NÚMERO DE SINIESTRO</Text>
-        <TextInput ref={refSiniestro} style={styles.input} keyboardType="numeric" onChangeText={v => setDatos({ ...datos, siniestro: v })} />
-
-        <Text style={styles.sectionT}>INFORMACIÓN ADICIONAL</Text>
-        {renderDropdown('ATENCIÓN (Checklist Múltiple)', datos.atencion.length > 0 ? datos.atencion.join(', ') : '', 'atencion', LISTAS.atencion)}
-        {renderDropdown('ACUERDO', datos.acuerdo, 'acuerdo', LISTAS.acuerdos)}
-        {renderDropdown('RESPONSABILIDAD', datos.responsabilidad, 'responsabilidad', LISTAS.responsabilidad)}
-        {renderDropdown('CIRCUNSTANCIAS', datos.circunstancias, 'circunstancias', LISTAS.circunstancias)}
-
-        <Text style={styles.sectionT}>FOTOGRAFÍAS ORDENADAS</Text>
-        {ORDEN_FOTOS.map(cat => (
-          <View key={cat} style={styles.catRow}>
-            <Text style={{ fontSize: 10, width: '48%' }}>{cat}</Text>
-            <View style={{flexDirection:'row'}}>
-              <TouchableOpacity onPress={() => manejarImagen('camara', cat)} style={styles.btnCam}><Text>📷</Text></TouchableOpacity>
-              <TouchableOpacity onPress={() => manejarImagen('galeria', cat)} style={styles.btnCam}><Text>🖼️</Text></TouchableOpacity>
-            </View>
-            <Text style={{ fontSize:14, color: THEME.secondary, fontWeight: 'bold' }}>{attachments.filter(a => a.label === cat).length || ""}</Text>
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}><Text style={styles.headerTitle}>REPORTE: {userId}</Text></View>
+        <ScrollView contentContainerStyle={{padding: 15}}>
+          
+          <View style={styles.card}>
+            <TouchableOpacity style={styles.row} onPress={() => setModalGeneric({visible:true, title:'ASEGURADORA', options:listaAseguradoras, setter:setAseguradora})}><Text style={styles.label}>ASEGURADORA:</Text><Text style={styles.valBlue}>{aseguradora}</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.row} onPress={() => setModalGeneric({visible:true, title:'ATENCIÓN', options:opcionesAtencion, setter:setAtencion})}><Text style={styles.label}>ATENCIÓN:</Text><Text style={styles.valBlue}>{atencion}</Text></TouchableOpacity>
+            <View style={styles.row}><Text style={styles.label}>N° REPORTE:</Text><TextInput style={styles.input} keyboardType="numeric" value={reporteNum} onChangeText={setReporteNum} placeholder="0000" /></View>
+            <View style={styles.row}><Text style={styles.label}>N° SINIESTRO:</Text><TextInput style={styles.input} keyboardType="numeric" value={siniestroNum} onChangeText={setSiniestroNum} placeholder="0000" /></View>
+            <TouchableOpacity style={styles.row} onPress={() => setModalGeneric({visible:true, title:'ACUERDO', options:opcionesAcuerdos, setter:setAcuerdo})}><Text style={styles.label}>NOMBRE ACUERDO:</Text><Text style={styles.valBlue}>{acuerdo}</Text></TouchableOpacity>
           </View>
-        ))}
 
-        <TouchableOpacity style={styles.btnEnviar} onPress={enviarReporte}><Text style={{ fontWeight: 'bold', color: THEME.primary }}>ENVIAR REPORTE</Text></TouchableOpacity>
-        <View style={{height: 100}} />
-      </ScrollView>
-
-      {/* --- MODAL PARA BUSCADOR Y LISTA (DISEÑO PREMIUM) --- */}
-      <Modal visible={modalVisible.visible} transparent animationType="slide">
-        <View style={styles.modalBg}>
-          <View style={styles.modalCont}>
-            <Text style={styles.modalTitle}>Seleccione {modalVisible.tipo}</Text>
-            
-            {/* 🔍 BARRA DE BÚSQUEDA INTEGRADA DENTRO DEL MODAL */}
-            <View style={styles.modalSearchContainer}>
-              <Text style={styles.modalSearchIcon}>🔍</Text>
-              <TextInput 
-                style={styles.modalSearchInput}
-                placeholder="Buscar..."
-                value={searchText}
-                onChangeText={setSearchText}
-                autoFocus={true}
-              />
-            </View>
-
-            {/* LISTA FILTRADA EN TIEMPO REAL */}
-            <FlatList
-              data={modalVisible.datos.filter(item => item.toUpperCase().includes(searchText.toUpperCase()))}
-              keyExtractor={item => item}
-              renderItem={({ item }) => (
-                <TouchableOpacity style={[styles.item, datos.atencion.includes(item) && {backgroundColor:'#E0F7FA'}, datos.aseguradora === item && {backgroundColor:'#EEE'}, datos.acuerdo === item && {backgroundColor:'#EEE'}]} onPress={() => seleccionarOpcion(item)}>
-                  <Text>{item} {datos.atencion.includes(item) || datos.aseguradora === item || datos.acuerdo === item ? "✅" : ""}</Text>
-                </TouchableOpacity>
-              )}
-            />
-            <TouchableOpacity style={styles.btnClose} onPress={() => setModalVisible({ visible: false, tipo: '', datos: [] })}>
-              <Text style={{ color: THEME.white, fontWeight:'bold' }}>CERRAR</Text>
-            </TouchableOpacity>
+          {/* SECCIÓN ACUERDOS IMPORTANTES */}
+          <Text style={styles.sectionTitle}>ACUERDOS IMPORTANTES</Text>
+          <View style={styles.card}>
+            {Object.keys(subAcuerdosImp).map(key => (
+              <View key={key} style={{marginBottom: 10, borderBottomWidth: 0.5, borderColor: '#DDD'}}>
+                <Text style={styles.subFolderTitle}>{key}</Text>
+                {key === "RECUPERACIÓN" && (
+                   <View style={styles.innerInputRow}>
+                     <TextInput style={styles.innerInput} placeholder="$ RECUPERACIÓN" keyboardType="numeric" onChangeText={(v)=>setDatosAcuerdos({...datosAcuerdos, recuperacion: v})} />
+                     <TextInput style={styles.innerInput} placeholder="AUT:" autoCapitalize="characters" onChangeText={(v)=>setDatosAcuerdos({...datosAcuerdos, autRecuperacion: v})} />
+                   </View>
+                )}
+                {key === "COMPLEMENTO" && (
+                   <View style={styles.innerInputRow}>
+                     <TextInput style={styles.innerInput} placeholder="$ COMPLEMENTO" keyboardType="numeric" onChangeText={(v)=>setDatosAcuerdos({...datosAcuerdos, complemento: v})} />
+                     <TextInput style={styles.innerInput} placeholder="AUT:" autoCapitalize="characters" onChangeText={(v)=>setDatosAcuerdos({...datosAcuerdos, autComplemento: v})} />
+                   </View>
+                )}
+                {subAcuerdosImp[key].map(sub => (
+                  <View key={sub} style={styles.listItem}>
+                    <Text style={styles.listText}>{sub}</Text>
+                    <TouchableOpacity onPress={() => procesarMultimedia("ACUERDO", sub)} style={styles.camIcon}><Text>📷</Text></TouchableOpacity>
+                    {evidencias[`ACUERDO_${sub}`]?.length > 0 && <TouchableOpacity onPress={() => setModalVisor({visible:true, folder:"ACUERDO", sub})} style={styles.eyeBadge}><Text style={{color:'white', fontSize:10}}>👁️ {evidencias[`ACUERDO_${sub}`].length}</Text></TouchableOpacity>}
+                  </View>
+                ))}
+              </View>
+            ))}
           </View>
-        </View>
-      </Modal>
-    </View>
+
+          <TouchableOpacity style={styles.docBtn} onPress={() => DocumentPicker.getDocumentAsync({multiple:true})}><Text style={styles.whiteTxtBold}>DOCUMENTOS DE ACUERDOS IMPORTANTES</Text></TouchableOpacity>
+
+          {/* DATOS FINALES */}
+          <View style={styles.card}>
+            <TouchableOpacity style={styles.row} onPress={() => setModalGeneric({visible:true, title:'RESPONSABILIDAD', options:opcionesResponsabilidad, setter:setResponsabilidad})}><Text style={styles.label}>RESPONSABILIDAD:</Text><Text style={styles.valBlue}>{responsabilidad}</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.row} onPress={() => setModalGeneric({visible:true, title:'CIRCUNSTANCIA', options:opcionesCircunstancias, setter:setCircunstancia})}><Text style={styles.label}>CIRCUNSTANCIA:</Text><Text style={styles.valBlue}>{circunstancia}</Text></TouchableOpacity>
+          </View>
+
+          {/* BOTONES DE FOTOGRAFÍA */}
+          <TouchableOpacity style={styles.catBtnAse} onPress={() => setShowAsegurado(!showAsegurado)}><Text style={styles.whiteTxtBold}>FOTOGRAFÍAS ASEGURADO</Text></TouchableOpacity>
+          {showAsegurado && <View style={styles.listContainer}>{subAsegurado.map(i => (
+            <View key={i} style={styles.listItem}><Text style={styles.listText}>{i}</Text><TouchableOpacity onPress={()=>procesarMultimedia("ASEGURADO", i)}><Text style={{fontSize:20}}>📷</Text></TouchableOpacity></View>
+          ))}</View>}
+
+          <TouchableOpacity style={styles.catBtnTer} onPress={() => setShowTercero(!showTercero)}><Text style={styles.whiteTxtBold}>FOTOGRAFÍAS TERCERO</Text></TouchableOpacity>
+          {showTercero && <View style={styles.listContainer}>{subTercero.map(i => (
+            <View key={i} style={styles.listItem}><Text style={styles.listText}>{i}</Text><TouchableOpacity onPress={()=>procesarMultimedia("TERCERO", i)}><Text style={{fontSize:20}}>📷</Text></TouchableOpacity></View>
+          ))}</View>}
+
+          <TouchableOpacity style={styles.sendBtn} onPress={enviarMail}><Text style={styles.sendTxt}>ENVIAR EXPEDIENTE</Text></TouchableOpacity>
+        </ScrollView>
+
+        {/* VISOR CON ROTACIÓN */}
+        <Modal visible={modalVisor.visible} transparent animationType="slide">
+          <View style={styles.overlay}><View style={styles.modalBox}>
+            <Text style={styles.modalHeader}>VISOR: {modalVisor.sub}</Text>
+            <ScrollView horizontal contentContainerStyle={{alignItems:'center'}}>
+              {(evidencias[`${modalVisor.folder}_${modalVisor.sub}`] || []).map((img, idx) => (
+                <View key={img.id} style={{margin: 10, alignItems:'center'}}>
+                  <Image source={{uri: img.uri}} style={[styles.visorImg, {transform: [{rotate: `${rotation}deg`}]}]} />
+                  <View style={{flexDirection:'row', gap: 10, marginTop:10}}>
+                    <TouchableOpacity onPress={() => setRotation(r => r + 90)} style={styles.toolBtn}><Text style={styles.whiteTxt}>ROTAR</Text></TouchableOpacity>
+                    <TouchableOpacity onPress={() => {
+                      const k = `${modalVisor.folder}_${modalVisor.sub}`;
+                      const filtered = evidencias[k].filter(f => f.id !== img.id);
+                      setEvidencias({...evidencias, [k]: filtered});
+                      if(filtered.length === 0) setModalVisor({visible:false});
+                    }} style={[styles.toolBtn, {backgroundColor:'red'}]}><Text style={styles.whiteTxt}>BORRAR</Text></TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+            <TouchableOpacity onPress={() => {setModalVisor({visible:false}); setRotation(0);}} style={styles.closeBtn}><Text style={styles.whiteTxt}>CERRAR</Text></TouchableOpacity>
+          </View></View>
+        </Modal>
+
+        {/* CÁMARA */}
+        {cameraActive && (
+          <Modal visible={true}>
+            <CameraView style={{flex:1}} ref={cameraRef}>
+              <View style={styles.camUI}>
+                <TouchableOpacity onPress={() => setCameraActive(false)} style={styles.camX}><Text style={styles.whiteTxt}>X</Text></TouchableOpacity>
+                <TouchableOpacity onPress={async () => {
+                  const p = await cameraRef.current.takePictureAsync();
+                  const manip = await ImageManipulator.manipulateAsync(p.uri, [{resize:{width:1200}}], {compress:0.5});
+                  agregarEvidencia(currentFolder, currentSubFolder, manip.uri);
+                  setCameraActive(false);
+                }} style={styles.shutter} />
+              </View>
+            </CameraView>
+          </Modal>
+        )}
+
+        {/* MODAL GENÉRICO */}
+        <Modal visible={modalGeneric.visible} transparent animationType="fade">
+          <View style={styles.overlay}><View style={styles.modalBox}>
+            <Text style={styles.modalHeader}>{modalGeneric.title}</Text>
+            <ScrollView style={{maxHeight: 400}}>
+              {modalGeneric.options.map(o => (
+                <TouchableOpacity key={o} style={styles.optBtn} onPress={() => {modalGeneric.setter(o); setModalGeneric({...modalGeneric, visible:false})}}><Text>{o}</Text></TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View></View>
+        </Modal>
+
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: THEME.bg },
-  header: { backgroundColor: THEME.primary, paddingTop: 50, padding: 15, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sectionT: { fontWeight: 'bold', color: THEME.primary, marginTop: 25, fontSize: 13, borderBottomWidth: 1.5, borderColor: '#EEE', paddingBottom: 5 },
-  dropdownContainer: { marginTop: 15 },
-  label: { fontWeight: 'bold', color: THEME.primary, marginBottom: 5 },
-  input: { borderBottomWidth: 1.5, borderColor: THEME.primary, padding: 8, marginBottom: 5, fontSize: 16 },
-  
-  // Estilo de los nuevos botones de despliegue
-  pickerBtn: { padding: 15, borderWidth: 1, borderColor: THEME.border, borderRadius: 8, marginTop: 5, backgroundColor: THEME.bgGray, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  dropText: { fontSize: 15 },
-  dropTextPlaceholder: { fontSize: 15, color: THEME.textLight },
-  dropIcon: { fontSize: 12, color: THEME.textLight },
-
-  catRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 0.5, borderColor: '#EEE' },
-  btnCam: { padding: 10, backgroundColor: '#F0F0F0', borderRadius: 8, marginLeft: 5 },
-  btnEnviar: { backgroundColor: THEME.accent, padding: 22, borderRadius: 15, alignItems: 'center', marginTop: 30, marginBottom: 50 },
-  
-  // --- ESTILOS DEL MODAL DE BÚSQUEDA ---
-  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center' },
-  modalCont: { backgroundColor: THEME.white, margin: 20, borderRadius: 12, padding: 20, maxHeight: '85%', shadowColor: THEME.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 10 },
-  modalTitle: { fontWeight: 'bold', fontSize: 20, marginBottom: 20, textAlign: 'center', color: THEME.primary },
-  
-  // Barra de búsqueda dentro del modal
-  modalSearchContainer: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: THEME.border, borderRadius: 8, backgroundColor: THEME.bgGray, marginBottom: 15, paddingHorizontal: 15 },
-  modalSearchIcon: { fontSize: 16, color: THEME.textLight, marginRight: 10 },
-  modalSearchInput: { flex: 1, padding: 12, fontSize: 16 },
-
-  item: { padding: 18, borderBottomWidth: 1, borderColor: '#EEE' },
-  btnClose: { backgroundColor: THEME.primary, padding: 18, borderRadius: 10, marginTop: 20, alignItems: 'center' },
-  loginPage: { flex: 1, backgroundColor: THEME.primary, justifyContent: 'center', alignItems: 'center' },
-  loginTitle: { color: THEME.white, fontSize: 28, fontWeight: 'bold', marginBottom: 30 },
-  loginInput: { backgroundColor: THEME.white, width: '85%', padding: 18, borderRadius: 12, textAlign: 'center', fontSize: 20, marginBottom: 10 },
-  loginBtn: { backgroundColor: THEME.accent, padding: 18, borderRadius: 12, marginTop: 10, width: '85%', alignItems: 'center' }
+  container: { flex: 1, backgroundColor: '#F0F3F6' },
+  loginContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#004381' },
+  loginTitle: { color: 'white', fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
+  loginInput: { backgroundColor: 'white', width: '80%', padding: 15, borderRadius: 10, textAlign: 'center', fontWeight: 'bold' },
+  loginBtn: { backgroundColor: '#FFD600', padding: 15, borderRadius: 10, marginTop: 20, width: '80%', alignItems: 'center' },
+  header: { backgroundColor: '#004381', padding: 15, alignItems: 'center' },
+  headerTitle: { color: 'white', fontWeight: 'bold' },
+  card: { backgroundColor: 'white', borderRadius: 10, padding: 10, marginBottom: 15, elevation: 2 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 0.5, borderColor: '#EEE' },
+  label: { fontSize: 11, fontWeight: 'bold', color: '#555' },
+  valBlue: { color: '#004381', fontWeight: 'bold' },
+  input: { textAlign: 'right', fontWeight: 'bold', color: '#004381', width: 100 },
+  sectionTitle: { fontWeight: '900', color: '#004381', marginVertical: 10 },
+  subFolderTitle: { backgroundColor: '#E3F2FD', padding: 5, fontSize: 10, fontWeight: 'bold', color: '#004381' },
+  listItem: { flexDirection: 'row', justifyContent: 'space-between', padding: 10, alignItems: 'center' },
+  listText: { fontSize: 11, color: '#333' },
+  innerInputRow: { flexDirection: 'row', gap: 5, padding: 5 },
+  innerInput: { flex: 1, backgroundColor: '#F5F5F5', padding: 5, borderRadius: 5, fontSize: 10, fontWeight: 'bold' },
+  docBtn: { backgroundColor: '#D32F2F', padding: 15, borderRadius: 10, alignItems: 'center', marginBottom: 15 },
+  catBtnAse: { backgroundColor: '#2E7D32', padding: 15, borderRadius: 10, alignItems: 'center', marginBottom: 10 },
+  catBtnTer: { backgroundColor: '#004381', padding: 15, borderRadius: 10, alignItems: 'center', marginBottom: 10 },
+  sendBtn: { backgroundColor: '#FFD600', padding: 20, borderRadius: 15, marginTop: 20, marginBottom: 50, alignItems: 'center' },
+  sendTxt: { color: '#004381', fontWeight: '900', fontSize: 18 },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' },
+  modalBox: { backgroundColor: 'white', width: '90%', borderRadius: 15, padding: 20 },
+  modalHeader: { fontWeight: 'bold', textAlign: 'center', marginBottom: 15, color: '#004381' },
+  optBtn: { padding: 15, borderBottomWidth: 0.5, borderColor: '#EEE' },
+  closeBtn: { backgroundColor: '#333', padding: 15, borderRadius: 10, marginTop: 10, alignItems: 'center' },
+  visorImg: { width: 250, height: 350, borderRadius: 10, resizeMode: 'contain' },
+  toolBtn: { padding: 10, backgroundColor: '#004381', borderRadius: 5 },
+  camUI: { flex: 1, justifyContent: 'space-between', padding: 40, alignItems: 'center' },
+  shutter: { width: 70, height: 70, borderRadius: 35, backgroundColor: 'white', borderWidth: 5, borderColor: '#004381' },
+  eyeBadge: { backgroundColor: '#2E7D32', padding: 5, borderRadius: 10 },
+  whiteTxt: { color: 'white', fontWeight: 'bold' },
+  whiteTxtBold: { color: 'white', fontWeight: 'bold', fontSize: 12 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' }
 });
